@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from .models import Zone
+from .geography import geometry_covers
 
 CACHE_SECONDS = 300
 
@@ -77,8 +78,8 @@ def load_shapes(db: Session) -> tuple[ZoneShape, ...]:
         if _cache and time.monotonic() - _cache[0] < CACHE_SECONDS:
             return _cache[1]
     shapes = tuple(
-        build_shape(zone_id, json.loads(boundary))
-        for zone_id, boundary in db.execute(select(Zone.id, Zone.boundary).where(Zone.boundary.is_not(None)))
+        build_shape(zone_id, json.loads(boundary) if isinstance(boundary, str) else boundary)
+        for zone_id, boundary in db.execute(select(Zone.id, Zone.boundary).where(Zone.boundary.is_not(None), Zone.active.is_(True)))
     )
     with _lock:
         _cache = (time.monotonic(), shapes)
@@ -87,4 +88,7 @@ def load_shapes(db: Session) -> tuple[ZoneShape, ...]:
 
 def zone_id_at(db: Session, lat: float, lng: float) -> str | None:
     """좌표가 속한 구의 ID. 어느 구에도 속하지 않으면 None."""
-    return find_in_shapes(load_shapes(db), lat, lng)
+    for zone in db.scalars(select(Zone).where(Zone.active.is_(True)).order_by(Zone.district_code, Zone.id)):
+        if geometry_covers(zone.boundary, lat, lng):
+            return zone.id
+    return None

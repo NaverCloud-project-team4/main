@@ -1,0 +1,2 @@
+# Build-only; the API and worker do not need Shapely.
+shapely==2.1.2

@@ -5,8 +5,9 @@ from fastapi import HTTPException
 from sqlalchemy import delete, select, update, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+from .geography import geometry_covers
 from .config import get_settings
-from .foliage import STAGES, interest_level, interest_score, kst_today, resolve_zone  # noqa: F401
+from .foliage import STAGES, interest_level, interest_score, kst_today, resolve_zone as resolve_foliage  # noqa: F401
 from .models import (
     ForecastSpot,
     Report,
@@ -30,6 +31,14 @@ def distance_m(lat1, lng1, lat2, lng2):
         + cos(radians(lat1)) * cos(radians(lat2)) * sin(radians(lng2 - lng1) / 2) ** 2
     )
     return 6_371_000 * 2 * asin(min(1, sqrt(a)))
+
+
+def resolve_zone(db: Session, latitude: float, longitude: float):
+    """Resolve an active administrative district using its actual polygon."""
+    for zone in db.scalars(select(Zone).where(Zone.active.is_(True)).order_by(Zone.id)):
+        if geometry_covers(zone.boundary, latitude, longitude):
+            return zone, distance_m(latitude, longitude, zone.latitude, zone.longitude)
+    return None
 
 
 def iso(t):
@@ -83,14 +92,14 @@ def aggregate_zones(db: Session, now_utc: datetime | None = None, forecast_today
 
     total = 0
     by_source = defaultdict(int)
-    for zone in db.scalars(select(Zone).order_by(Zone.id)):
+    for zone in db.scalars(select(Zone).where(Zone.active.is_(True)).order_by(Zone.id)):
         recent = db.execute(
             select(Report.stage, Report.created_at)
             .where(Report.zone_id == zone.id, Report.status == "APPROVED", Report.created_at >= stage_cutoff)
             .order_by(Report.created_at.desc(), Report.id.desc())
             .limit(s.stage_vote_size)
         ).all()
-        result = resolve_zone(
+        result = resolve_foliage(
             reports=[(row.stage, row.created_at) for row in recent],
             spot_dates=spot_dates.get(zone.id, []),
             now=t,
@@ -145,7 +154,7 @@ def aggregate_zones(db: Session, now_utc: datetime | None = None, forecast_today
 
 def zone_summaries(db: Session, bounds=None, legacy_radius=False) -> list[dict]:
     """구역 목록(단계, 출처, 관심도). /api/zones 응답과 지도 JSON이 같은 필드를 쓴다."""
-    q = select(Zone, ZoneStatus, ZoneActivity).join(ZoneStatus).join(ZoneActivity)
+    q = select(Zone, ZoneStatus, ZoneActivity).join(ZoneStatus).join(ZoneActivity).where(Zone.active.is_(True))
     if bounds is not None:
         min_lat, max_lat, min_lng, max_lng = bounds
         q = q.where(Zone.latitude.between(min_lat, max_lat), Zone.longitude.between(min_lng, max_lng))
@@ -156,6 +165,7 @@ def zone_summaries(db: Session, bounds=None, legacy_radius=False) -> list[dict]:
             "name": z.name,
             "latitude": z.latitude,
             "longitude": z.longitude,
+            "district_code": z.district_code,
             "stage": st.stage,
             "source": st.source,
             "peak_date": st.peak_date.isoformat() if st.peak_date else None,

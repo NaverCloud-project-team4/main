@@ -8,7 +8,7 @@ Revision ID: b7c1d4e92a10
 Revises: 947f5a336531
 Create Date: 2026-10-24 00:00:00
 """
-from alembic import op
+from alembic import op, context
 import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
@@ -19,9 +19,11 @@ depends_on = None
 
 
 def upgrade():
-    with op.batch_alter_table("zones") as batch:
-        batch.add_column(sa.Column("boundary", sa.Text().with_variant(mysql.MEDIUMTEXT(), "mysql"), nullable=True))
-        batch.drop_column("revision")
+    columns = None if context.is_offline_mode() else {c["name"] for c in sa.inspect(op.get_bind()).get_columns("zones")}
+    if columns is None or "boundary" not in columns:
+        op.add_column("zones", sa.Column("boundary", sa.Text().with_variant(mysql.MEDIUMTEXT(), "mysql"), nullable=True))
+    if columns is None or "revision" in columns:
+        op.drop_column("zones", "revision")
     with op.batch_alter_table("zone_status") as batch:
         batch.add_column(sa.Column("source", sa.String(length=12), server_default="NONE", nullable=False))
         batch.add_column(sa.Column("peak_date", sa.Date(), nullable=True))
@@ -52,4 +54,5 @@ def downgrade():
         batch.drop_column("source")
     with op.batch_alter_table("zones") as batch:
         batch.add_column(sa.Column("revision", sa.Integer(), server_default="0", nullable=False))
-        batch.drop_column("boundary")
+        if context.is_offline_mode() or "boundary" in {c["name"] for c in sa.inspect(op.get_bind()).get_columns("zones")}:
+            batch.drop_column("boundary")

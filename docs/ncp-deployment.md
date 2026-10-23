@@ -89,3 +89,9 @@ Cloud Functions 대신 같은 코드를 `python -m app.worker`로 상시 실행�
 
 - [네이버 지도 JavaScript API 시작하기·인증 실패 처리](https://navermaps.github.io/maps.js.ncp/docs/tutorial-2-Getting-Started.html)
 - [네이버 Maps 웹 서비스 URL 인증 문제 해결](https://guide.ncloud-docs.com/docs/maps-troubleshoot)
+
+## 통합 버전 적용 (2026-10-23)
+
+두 기존 DB 버전에서 `app.cli init`으로 `8d5e29c410b7`까지 업그레이드합니다. 적용 전 DB 백업을 생성하고 API/워커를 중지한 유지보수 구간에 한 번 실행하세요. `AGGREGATE_KEY`(16자 이상)를 API·워커·함수에 동일하게 주입합니다. `MAP_BUCKET`은 공개 지도 JSON용 버킷으로 지정합니다. 사진 버킷은 계속 비공개로 둡니다.
+
+상시 워커에서 집계하려면 `python -m app.worker --aggregate`를 사용합니다. 패키징된 예약 Cloud Function의 `scheduled: true` 실행도 업로드 복구·검증 작업 후 지도 집계를 수행합니다. 외부 스케줄러가 API를 호출하는 방식이라면 1분마다 `POST /api/internal/aggregate`에 `X-Aggregate-Key`를 전달하세요. 지도 JSON 업로드가 실패하면 DB 집계는 이미 커밋되었을 수 있으며 다음 실행에서 다시 발행합니다.

@@ -180,3 +180,58 @@ CREATE TABLE zone_status (
 );
 
 INSERT INTO alembic_version (version_num) VALUES ('947f5a336531');
+
+-- Running upgrade 947f5a336531 -> b7c1d4e92a10
+
+ALTER TABLE zones ADD COLUMN boundary MEDIUMTEXT;
+
+ALTER TABLE zones DROP COLUMN revision;
+
+ALTER TABLE zone_status ADD COLUMN source VARCHAR(12) NOT NULL DEFAULT 'NONE';
+
+ALTER TABLE zone_status ADD COLUMN peak_date DATE;
+
+CREATE TABLE forecast_spots (
+    id INTEGER NOT NULL AUTO_INCREMENT,
+    season_id VARCHAR(20) NOT NULL,
+    zone_id VARCHAR(40),
+    name VARCHAR(80) NOT NULL,
+    kind VARCHAR(16) NOT NULL,
+    latitude FLOAT NOT NULL,
+    longitude FLOAT NOT NULL,
+    peak_date DATE NOT NULL,
+    source VARCHAR(100) NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT ck_spot_kind CHECK (kind IN ('MOUNTAIN','GINKGO')),
+    FOREIGN KEY(season_id) REFERENCES seasons (id),
+    FOREIGN KEY(zone_id) REFERENCES zones (id),
+    CONSTRAINT uq_spot_name UNIQUE (season_id, name)
+);
+
+CREATE INDEX ix_spot_zone ON forecast_spots (zone_id, season_id);
+
+UPDATE alembic_version SET version_num='b7c1d4e92a10' WHERE alembic_version.version_num = '947f5a336531';
+
+-- Running upgrade 947f5a336531 -> 2b8c341f902a
+
+ALTER TABLE zones ADD COLUMN district_code VARCHAR(5);
+
+ALTER TABLE zones ADD COLUMN active BOOL NOT NULL DEFAULT true;
+
+CREATE UNIQUE INDEX uq_zone_district_code ON zones (district_code);
+
+INSERT INTO alembic_version (version_num) VALUES ('2b8c341f902a');
+
+-- Running upgrade 2b8c341f902a -> 4a7d1c6e8f02
+
+ALTER TABLE reports ADD COLUMN photo_source VARCHAR(16) NOT NULL DEFAULT 'legacy';
+
+ALTER TABLE reports ADD COLUMN location_source VARCHAR(16) NOT NULL DEFAULT 'legacy';
+
+UPDATE alembic_version SET version_num='4a7d1c6e8f02' WHERE alembic_version.version_num = '2b8c341f902a';
+
+-- Running upgrade 4a7d1c6e8f02, b7c1d4e92a10 -> 8d5e29c410b7
+
+DELETE FROM alembic_version WHERE alembic_version.version_num = '4a7d1c6e8f02';
+
+UPDATE alembic_version SET version_num='8d5e29c410b7' WHERE alembic_version.version_num = 'b7c1d4e92a10';

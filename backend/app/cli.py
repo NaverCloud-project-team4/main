@@ -1,21 +1,20 @@
 import argparse
 import csv
-import json
 from datetime import date, datetime
 from pathlib import Path
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from .aggregate import run_aggregation
 from .config import get_settings, ROOT
 from .db import SessionLocal
+from .district_setup import sync_seoul_districts
+from .geography import seoul_boundaries
 from .geo import build_shape, clear_zone_cache, find_in_shapes
 from .models import (
     User,
     Season,
     Zone,
-    ZoneStatus,
-    ZoneActivity,
     ForecastSpot,
     Item,
     Report,
@@ -37,44 +36,16 @@ ITEMS = [
 
 
 def load_districts():
-    with open(DATA / "zones_seoul25.geojson", encoding="utf-8") as f:
-        return json.load(f)["features"]
+    return [
+        {**feature, "properties": {**feature["properties"], "marker": feature["properties"]["center"]}}
+        for feature in seoul_boundaries()["features"]
+    ]
 
 
 def seed_districts(db):
-    """서울 25개 구와 경계를 넣는다. 이미 있으면 이름·대표점·경계만 갱신한다(재실행 안전)."""
-    for feature in load_districts():
-        zid = feature["id"]
-        lng, lat = feature["properties"]["marker"]
-        boundary = json.dumps(feature["geometry"], separators=(",", ":"))
-        zone = db.get(Zone, zid)
-        if zone is None:
-            db.add(Zone(id=zid, name=feature["properties"]["name"], latitude=lat, longitude=lng, boundary=boundary))
-            db.flush()
-            db.add(ZoneStatus(zone_id=zid))
-            db.add(ZoneActivity(zone_id=zid))
-        else:
-            zone.name = feature["properties"]["name"]
-            zone.latitude, zone.longitude, zone.boundary = lat, lng, boundary
-    db.flush()
+    sync_seoul_districts(db.connection())
+    db.expire_all()
     clear_zone_cache()
-
-
-def remove_legacy_zones(db):
-    """예전 샘플 구역(경계 없음)을 제보가 없을 때만 지운다."""
-    keep = {f["id"] for f in load_districts()}
-    for zone in list(db.scalars(select(Zone).where(Zone.boundary.is_(None)))):
-        if zone.id in keep:
-            continue
-        if db.scalar(select(Report.id).where(Report.zone_id == zone.id).limit(1)):
-            print(f"Legacy zone {zone.id} has reports; kept.")
-            continue
-        db.execute(delete(ForecastSpot).where(ForecastSpot.zone_id == zone.id))
-        db.execute(delete(ZoneStatus).where(ZoneStatus.zone_id == zone.id))
-        db.execute(delete(ZoneActivity).where(ZoneActivity.zone_id == zone.id))
-        db.delete(zone)
-        print(f"Legacy zone {zone.id} removed.")
-    db.flush()
 
 
 def seed_forecast_spots(db, season_id):
@@ -122,7 +93,6 @@ def initialize(demo=False):
         db.flush()
         seed_districts(db)
         seed_forecast_spots(db, str(year))
-        remove_legacy_zones(db)
         for iid, name, price, slot, icon in ITEMS:
             if not db.get(Item, iid):
                 db.add(Item(id=iid, name=name, price=price, slot=slot, icon=icon))
@@ -151,7 +121,8 @@ def seed_reports(season_id):
         ("seongdong", "sample-maple.png", "MAPLE", "샘플 제보 · 서울숲 산책길의 가을 풍경이에요."),
     ]:
         with SessionLocal() as db:
-            if db.scalar(select(Report.id).where(Report.user_id == user_id, Report.request_key == f"seed:{zone_id}")):
+            legacy_keys = {"dongdaemun": ["seed:kyunghee", "seed:seoul-11230"], "seongdong": ["seed:seoulforest", "seed:seoul-11200"]}[zone_id]
+            if db.scalar(select(Report.id).where(Report.user_id == user_id, Report.request_key.in_([f"seed:{zone_id}", *legacy_keys]))):
                 continue
             zone = db.get(Zone, zone_id)
             lat, lng = zone.latitude, zone.longitude

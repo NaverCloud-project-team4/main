@@ -1,23 +1,8 @@
 import uuid
 from datetime import date, datetime, timezone
-from sqlalchemy import (
-    String,
-    Integer,
-    Float,
-    DateTime,
-    Date,
-    Text,
-    ForeignKey,
-    UniqueConstraint,
-    CheckConstraint,
-    Index,
-)
-from sqlalchemy.dialects import mysql
+from sqlalchemy import String, Integer, Float, DateTime, ForeignKey, UniqueConstraint, CheckConstraint, Index, JSON, Boolean, Date
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
-
-# 구 경계(GeoJSON geometry JSON). 가장 큰 구가 약 12KB라 MySQL에서는 MEDIUMTEXT로 둔다.
-BoundaryText = Text().with_variant(mysql.MEDIUMTEXT(), "mysql")
 
 
 def now():
@@ -55,8 +40,12 @@ class Zone(Base):
     name: Mapped[str] = mapped_column(String(80))
     latitude: Mapped[float] = mapped_column(Float)
     longitude: Mapped[float] = mapped_column(Float)
-    radius_m: Mapped[int] = mapped_column(default=1500)  # 폐기 예정(구 경계 판정으로 대체). 프런트 확인 후 제거
-    boundary: Mapped[str | None] = mapped_column(BoundaryText)
+    # Legacy radius retained for old rows; active districts use boundary polygons.
+    radius_m: Mapped[int] = mapped_column(default=1500)
+    district_code: Mapped[str | None] = mapped_column(String(5))
+    boundary: Mapped[dict | None] = mapped_column(JSON)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    __table_args__ = (Index("uq_zone_district_code", "district_code", unique=True),)
 
 
 class Report(Base):
@@ -72,6 +61,8 @@ class Report(Base):
     latitude: Mapped[float] = mapped_column(Float)
     longitude: Mapped[float] = mapped_column(Float)
     object_key: Mapped[str] = mapped_column(String(255), unique=True)
+    photo_source: Mapped[str] = mapped_column(String(16), default="legacy", server_default="legacy")
+    location_source: Mapped[str] = mapped_column(String(16), default="legacy", server_default="legacy")
     photo_hash: Mapped[str] = mapped_column(String(64))
     request_key: Mapped[str] = mapped_column(String(100))
     request_fingerprint: Mapped[str] = mapped_column(String(64))

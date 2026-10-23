@@ -50,6 +50,8 @@ class ReportOut(BaseModel):
     author: str
     latitude: float
     longitude: float
+    photo_source: Literal["camera", "upload", "legacy"]
+    location_source: Literal["current", "manual", "legacy"]
     created_at: str
     approved_at: str | None
     like_count: int
@@ -73,3 +75,8 @@ class ReviewIn(BaseModel):
 
 class EquipIn(BaseModel):
     item_id: str = Field(min_length=1, max_length=40)
+
+
+class LocationIn(BaseModel):
+    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)

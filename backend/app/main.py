@@ -30,11 +30,11 @@ from .models import (
     now,
     uid,
 )
-from .schemas import LoginIn, RegisterIn, UserOut, AuthOut, ReportOut, ReportPage, ReviewIn, EquipIn, Stage, Species
+from .schemas import LoginIn, RegisterIn, UserOut, AuthOut, ReportOut, ReportPage, ReviewIn, EquipIn, Stage, Species, LocationIn
 from .security import current_user, optional_user, admin_user, hash_password, check_password, make_token
 from .storage import get_storage, normalize_image
-from .services import set_like, decide_report, zone_summaries, map_document
-from .geo import zone_id_at
+from .geography import geometry_covers, seoul_boundaries, canonical_zone_id
+from .services import set_like, decide_report, resolve_zone, zone_summaries, map_document
 from .aggregate import run_aggregation
 from .jobs import enqueue
 
@@ -175,6 +175,8 @@ def serialize_reports(db, reports, viewer):
             "author": authors[r.user_id],
             "latitude": r.latitude,
             "longitude": r.longitude,
+            "photo_source": r.photo_source,
+            "location_source": r.location_source,
             "created_at": iso(r.created_at),
             "approved_at": iso(r.approved_at),
             "like_count": r.like_count,
@@ -296,20 +298,51 @@ def aggregate(x_aggregate_key: Annotated[str | None, Header()] = None):
         raise HTTPException(502, "집계 또는 지도 JSON 업로드에 실패했습니다.")
 
 
+@app.get("/api/zones/boundaries", tags=["지도"])
+def zone_boundaries(db: DB):
+    source = seoul_boundaries()
+    return {
+        **{key: source[key] for key in ("type", "name", "boundary_version", "license", "attribution", "bbox", "city_geometry")},
+        "features": [
+            {"type": "Feature", "id": zone.id,
+             "properties": {"zone_id": zone.id, "name": zone.name, "district_code": zone.district_code},
+             "geometry": zone.boundary}
+            for zone in db.scalars(select(Zone).where(Zone.active.is_(True)).order_by(Zone.id))
+        ],
+    }
+
+
+@app.post("/api/zones/resolve", tags=["지도"])
+def resolve_location(location: LocationIn, db: DB):
+    # Coordinates stay in the request body instead of URLs/access-log query strings.
+    match = resolve_zone(db, location.latitude, location.longitude)
+    if match is None:
+        return {"zone": None, "distance_m": None}
+    zone, distance = match
+    return {
+        "zone": {"id": zone.id, "name": zone.name, "district_code": zone.district_code},
+        "distance_m": round(distance),
+    }
+
+
 @app.post("/api/reports", status_code=202, response_model=ReportOut, tags=["제보"])
 def create_report(
     db: DB,
     user: Current,
-    zone_id: Annotated[str, Form(max_length=40)],
     stage: Annotated[Stage, Form()],
     species: Annotated[Species, Form()],
     latitude: Annotated[float, Form(ge=-90, le=90)],
     longitude: Annotated[float, Form(ge=-180, le=180)],
     photo: Annotated[UploadFile, File()],
+    zone_id: Annotated[str | None, Form(max_length=40)] = None,
+    photo_source: Annotated[Literal["camera", "upload"], Form()] = "camera",
+    location_source: Annotated[Literal["current", "manual"], Form()] = "current",
     description: Annotated[str, Form(max_length=1000)] = "",
     demo_outcome: Annotated[Literal["APPROVED", "REVIEW", "REJECTED"] | None, Form()] = None,
     idempotency_key: Annotated[str | None, Header(max_length=100, min_length=1)] = None,
 ):
+    if user.role != "admin" and (photo_source == "upload" or location_source == "manual"):
+        raise HTTPException(403, "사진 파일 선택과 위치 직접 지정은 운영자만 사용할 수 있습니다.")
     if demo_outcome is not None and (s.environment not in {"local", "test"} or s.verification_mode != "demo"):
         raise HTTPException(422, "테스트 검증 결과는 로컬 데모 환경에서만 지정할 수 있습니다.")
     raw = photo.file.read(s.max_upload_bytes + 1)
@@ -319,11 +352,20 @@ def create_report(
         image = normalize_image(raw)
     except ValueError as exc:
         raise HTTPException(422, str(exc))
-    zone = db.get(Zone, zone_id)
-    if zone is None:
-        raise HTTPException(404, "구역을 찾을 수 없습니다.")
-    if zone_id_at(db, latitude, longitude) != zone_id:
-        raise HTTPException(422, "제보 위치가 선택한 구 밖입니다.")
+    zone_id = canonical_zone_id(zone_id)
+    if zone_id is None:
+        match = resolve_zone(db, latitude, longitude)
+        if match is None:
+            raise HTTPException(422, "현재 위치는 제보 가능한 서비스 구역 밖입니다. 서울 안에서 제보해주세요.")
+        zone, _ = match
+        zone_id = zone.id
+    else:
+        # Preserve the existing API contract for older clients.
+        zone = db.get(Zone, zone_id)
+        if zone is None:
+            raise HTTPException(404, "구역을 찾을 수 없습니다.")
+        if not zone.active or not geometry_covers(zone.boundary, latitude, longitude):
+            raise HTTPException(422, "제보 위치가 선택한 자치구 밖입니다.")
     season = db.scalar(
         select(Season)
         .where(Season.starts_at <= now(), Season.ends_at > now())
@@ -335,7 +377,7 @@ def create_report(
     photo_hash = hashlib.sha256(image).hexdigest()
     fingerprint = hashlib.sha256(
         json.dumps(
-            [zone_id, stage, species, latitude, longitude, description, photo_hash, demo_outcome], ensure_ascii=False
+            [zone_id, stage, species, latitude, longitude, description, photo_hash, demo_outcome, photo_source, location_source], ensure_ascii=False
         ).encode()
     ).hexdigest()
     key = idempotency_key or uid()
@@ -368,6 +410,8 @@ def create_report(
         latitude=latitude,
         longitude=longitude,
         description=description,
+        photo_source=photo_source,
+        location_source=location_source,
         object_key=f"reports/{report_id}.jpg",
         photo_hash=photo_hash,
         request_key=key,
@@ -406,9 +450,9 @@ def reports(
     page: int = Query(1, ge=1, le=10000),
     page_size: int = Query(12, ge=1, le=50),
 ):
-    q = select(Report).where(Report.status == "APPROVED")
+    q = select(Report).join(Zone).where(Report.status == "APPROVED", Zone.active.is_(True))
     if zone_id:
-        q = q.where(Report.zone_id == zone_id)
+        q = q.where(Report.zone_id == canonical_zone_id(zone_id))
     return report_page(db, q, user, page, page_size, sort)
 
 
