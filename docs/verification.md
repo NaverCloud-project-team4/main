@@ -139,3 +139,12 @@ NCP 실계정 배포, 관리형 MySQL 연결, 실제 Object Storage 이벤트 �
 - 실제 CUA 검증: 전체 보기에서 가로 드래그해도 은평구 마커 위치 불변. 확대한 지도에서 고양 방향 드래그 후 서울 경계 안/경계선에 중심이 남는 것 확인(SVG 경계 기준 화면 중심과 경계 거리 약 0.47px). 드래그 전후 가림 SVG 사각형과 지도 viewport 사각형이 일치하며 opacity=1 유지. 서울 전체 보기 복원 확인.
 - 모바일에서도 가림과 viewport 일치, 서울 안 중심, NAVER 로고 표시, 가로 넘침 없음 확인. 앱 콘솔 오류 없음. Vite 빌드·diff 공백 검사 통과. DB 변경 없음.
 - 캡처: `artifacts/seoul-map-fixed-desktop.jpg`, `artifacts/seoul-map-fixed-mobile.jpg`.
+
+## 팀 main과 로컬 작업 통합 (2026-10-23)
+
+- 원격 main `febb943`(서울 25개 구·예측 지점·단계 다수결/예측·1분 집계·지도 JSON)을 로컬 지도/촬영 UI와 통합했습니다. 작업 전 로컬 변경은 `dab5406` 커밋으로 보존했습니다.
+- main의 영문 구역 ID를 유지하고 로컬 `seoul-법정코드` 요청은 호환 처리합니다. 2026-10-01 상세 경계와 서울 외곽선으로 지도·좌표 자동 분류를 통일했습니다. 기존 두 DB head에서 업그레이드할 수 있도록 중복 boundary DDL을 방지하고 merge revision `8d5e29c410b7`을 추가했습니다.
+- Python 테스트 **76개 통과**: 양쪽 기존 migration head에 실제 제보/좋아요/포인트를 넣고 upgrade하는 경로, 새 설치·왕복 마이그레이션, 원격 main의 예측·집계·내부 키 검증, 촬영/수동 위치 권한, 과거 ID 요청 호환 포함. SQLite 검증이며 실제 관리형 MySQL 업그레이드는 미실행입니다. MySQL 오프라인 DDL 생성 성공.
+- Node 카메라·위치·서울 viewport 회귀 **18개 통과**, Ruff 및 Vite 프로덕션 빌드 통과. Cloud Functions 패키지에 새 foliage·aggregate 모듈과 구 ID 매핑 데이터를 포함했습니다. 예약 함수와 로컬 워커의 집계를 연결하고 production 집계 키 설정을 문서화했습니다.
+- 실제 로컬 DB는 `.data/backups/before-main-integration-20261023.db`로 백업했습니다. 복사본 업그레이드 후 실제 DB에 적용하고, 제보 10건의 zone_id 이외 모든 기존 필드 및 사용자 6명·좋아요 5건·포인트 원장 11건·검증/작업/아이템/장착 내역을 백업과 비교하여 동일함을 확인했습니다. FK 검사 통과. 활성 구 25개, 집계 출처 REPORT 1개·FORECAST 24개.
+- 실제 CUA 화면에서 GL 지도 ready, 구 이름 25개·관심 나무 3개, main ID `dongdaemun` 선택, 강남구의 ‘예측 기반’ 표시 및 서울 전체 보기 확인. 확인 시 브라우저 오류 없음. 화면 캡처 `artifacts/main-integration-result.png`. 실제 카메라 촬영·CLOVA/S3 및 클라우드 배포는 이번 통합에서 추가 검증하지 않았습니다.

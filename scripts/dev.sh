@@ -25,7 +25,7 @@ cleanup() {
 trap cleanup EXIT INT TERM
 "$PYTHON" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 2 --no-access-log &
 pids+=("$!")
-"$PYTHON" -m app.worker &
+"$PYTHON" -m app.worker --aggregate &
 pids+=("$!")
 (cd frontend && "$NODE" node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173 --strictPort) &
 pids+=("$!")

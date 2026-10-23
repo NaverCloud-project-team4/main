@@ -62,7 +62,7 @@ fs.mkdirSync(OUT, { recursive: true });
     await page.locator('.report-card').filter({hasText:cameraDescription}).getByRole('button',{name:'승인',exact:true}).click();
     await page.locator('.report-card').filter({hasText:cameraDescription}).waitFor({state:'detached'});
     await nav('사진 제보하기');
-    await page.getByRole('combobox',{name:'제보할 자치구',exact:true}).selectOption('seoul-11200');
+    await page.getByRole('combobox',{name:'제보할 자치구',exact:true}).selectOption('seongdong');
     await page.getByRole('heading',{name:'성동구',exact:true}).waitFor();
     await page.locator('input[type=file]').setInputFiles(path.resolve('frontend/public/sample-ginkgo.jpg'));
     await page.getByLabel('한 줄 기록').fill(adminDescription);

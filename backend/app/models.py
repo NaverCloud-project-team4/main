@@ -1,6 +1,6 @@
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import String, Integer, Float, DateTime, ForeignKey, UniqueConstraint, CheckConstraint, Index, JSON, Boolean
+from datetime import date, datetime, timezone
+from sqlalchemy import String, Integer, Float, DateTime, ForeignKey, UniqueConstraint, CheckConstraint, Index, JSON, Boolean, Date
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -42,7 +42,6 @@ class Zone(Base):
     longitude: Mapped[float] = mapped_column(Float)
     # Legacy radius retained for old rows; active districts use boundary polygons.
     radius_m: Mapped[int] = mapped_column(default=1500)
-    revision: Mapped[int] = mapped_column(default=0)
     district_code: Mapped[str | None] = mapped_column(String(5))
     boundary: Mapped[dict | None] = mapped_column(JSON)
     active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
@@ -122,8 +121,28 @@ class ZoneStatus(Base):
     __tablename__ = "zone_status"
     zone_id: Mapped[str] = mapped_column(ForeignKey("zones.id"), primary_key=True)
     stage: Mapped[str] = mapped_column(String(16), default="UNKNOWN")
+    source: Mapped[str] = mapped_column(String(12), default="NONE", server_default="NONE")
+    peak_date: Mapped[date | None] = mapped_column(Date)
     latest_report_id: Mapped[str | None] = mapped_column(ForeignKey("reports.id"))
     updated_at: Mapped[datetime] = mapped_column(default=now)
+
+
+class ForecastSpot(Base):
+    __tablename__ = "forecast_spots"
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    season_id: Mapped[str] = mapped_column(ForeignKey("seasons.id"))
+    zone_id: Mapped[str | None] = mapped_column(ForeignKey("zones.id"))
+    name: Mapped[str] = mapped_column(String(80))
+    kind: Mapped[str] = mapped_column(String(16))
+    latitude: Mapped[float] = mapped_column(Float)
+    longitude: Mapped[float] = mapped_column(Float)
+    peak_date: Mapped[date] = mapped_column(Date)
+    source: Mapped[str] = mapped_column(String(100))
+    __table_args__ = (
+        UniqueConstraint("season_id", "name", name="uq_spot_name"),
+        CheckConstraint("kind IN ('MOUNTAIN','GINKGO')", name="ck_spot_kind"),
+        Index("ix_spot_zone", "zone_id", "season_id"),
+    )
 
 
 class ZoneActivity(Base):

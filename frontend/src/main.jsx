@@ -15,7 +15,7 @@ const dateText = x => new Date(x).toLocaleString('ko-KR', { month: 'short', day:
 function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem('access_token') || '');
   const [user, setUser] = useState(null), [config, setConfig] = useState(null), [health, setHealth] = useState(false);
-  const [zones, setZones] = useState([]), [selected, setSelected] = useState('seoul-11230');
+  const [zones, setZones] = useState([]), [selected, setSelected] = useState('dongdaemun');
   const [feed, setFeed] = useState({ items: [], total: 0 }), [mine, setMine] = useState([]), [items, setItems] = useState([]), [reviews, setReviews] = useState([]);
   const [tab, setTab] = useState('map'), [sort, setSort] = useState('recent'), [filter, setFilter] = useState(''), [page, setPage] = useState(1);
   const [authOpen, setAuthOpen] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
@@ -59,6 +59,13 @@ function App() {
     }, 1200);
     return () => { stopped = true; clearInterval(interval); };
   }, [active?.id, active?.status, token, refresh]);
+  useEffect(() => {
+    if (tab !== 'map') return;
+    const interval = setInterval(() => {
+      api('/api/zones').then(setZones).catch(e => setError(e.message));
+    }, 60000);
+    return () => clearInterval(interval);
+  }, [tab]);
   // Resume observing a persisted pending report after a browser refresh.
   useEffect(() => { if (!active) { const unfinished = mine.find(r => pending(r.status)); if (unfinished) setActive(unfinished); } }, [mine, active]);
 
@@ -108,7 +115,7 @@ function App() {
     {tab === 'map' && <div className="stats"><Stat icon="camera" label="최근 7일 제보" value={zones.reduce((n, z) => n + z.report_count, 0)} unit="건"/><Stat icon="map" label="서울 자치구" value={zones.length} unit="개"/><Stat icon="heart" label="모인 좋아요" value={zones.reduce((n, z) => n + z.like_count, 0)} unit="개"/></div>}
     {active && <div className={`verification ${active.status.toLowerCase()}`}><span className="verification-icon">{pending(active.status) ? '◌' : active.status === 'APPROVED' ? '✓' : '!'}</span><div><b>{statuses[active.status]}</b><p>{active.reason || '검증 작업을 기다리고 있어요. 결과가 자동으로 갱신돼요.'}</p></div><button className="text-button" onClick={() => { setTab('profile'); }}>내 제보 보기 →</button></div>}
     {tab === 'map' && <div className="map-page"><div className="panel map-panel"><div className="panel-heading"><div><h2>서울의 단풍 지도</h2><p className="subtle">관심이 모인 구에는 단풍나무가 자라요</p></div><span className="map-count">{zones.length}개 구</span></div><NaverZoneMap zones={zones} selected={selected} onSelect={setSelected} />
-      <div className="zone-detail"><span className="zone-detail-icon" aria-hidden="true">🍂</span><div className="zone-detail-copy"><span className="stage-label">{stages[zone?.stage] || '제보 기다리는 중'}</span><h3>{zone?.name || '자치구 불러오는 중'}</h3><p>최근 제보 {zone?.report_count || 0}건 · 좋아요 {zone?.like_count || 0}개</p></div><div className="zone-detail-actions"><button className="button secondary" onClick={() => { setFilter(selected); setPage(1); setTab('feed'); }}>이 구의 제보 <Icon name="chevron" size={16}/></button><button className="button" onClick={() => setTab('report')}><Icon name="camera" size={18}/> 현재 위치에서 사진 제보하기</button></div></div>
+      <div className="zone-detail"><span className="zone-detail-icon" aria-hidden="true">🍂</span><div className="zone-detail-copy"><span className="stage-label">{stages[zone?.stage] || '제보 기다리는 중'}{zone?.source === 'FORECAST' ? ' · 예측 기반' : zone?.source === 'REPORT' ? ' · 제보 기반' : ''}</span><h3>{zone?.name || '자치구 불러오는 중'}</h3><p>최근 제보 {zone?.report_count || 0}건 · 좋아요 {zone?.like_count || 0}개</p></div><div className="zone-detail-actions"><button className="button secondary" onClick={() => { setFilter(selected); setPage(1); setTab('feed'); }}>이 구의 제보 <Icon name="chevron" size={16}/></button><button className="button" onClick={() => setTab('report')}><Icon name="camera" size={18}/> 현재 위치에서 사진 제보하기</button></div></div>
       <div className="zone-list">{zones.map(z => <button key={z.id} onClick={() => setSelected(z.id)} aria-pressed={selected === z.id} className={selected === z.id ? 'zone-chip active' : 'zone-chip'}>{z.name}<small>{stages[z.stage]}</small></button>)}</div></div>
     </div>}
     {tab === 'report' && <PhotoReportPage key={user?.id || 'guest'} user={user} zones={zones} token={token} config={config} busy={busy} submit={submit} login={() => setAuthOpen(true)} setError={setError} onLocated={setSelected} viewMap={() => setTab('map')}/>}

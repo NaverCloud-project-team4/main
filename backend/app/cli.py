@@ -1,22 +1,79 @@
 import argparse
-from datetime import datetime
+import csv
+from datetime import date, datetime
 from pathlib import Path
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import select
+from .aggregate import run_aggregation
 from .config import get_settings, ROOT
 from .db import SessionLocal
-from .models import User, Season, Zone, Item, Report, ReportVerification, uid, now
+from .district_setup import sync_seoul_districts
+from .geography import seoul_boundaries
+from .geo import build_shape, clear_zone_cache, find_in_shapes
+from .models import (
+    User,
+    Season,
+    Zone,
+    ForecastSpot,
+    Item,
+    Report,
+    ReportVerification,
+    uid,
+    now,
+)
 from .security import hash_password
 from .storage import get_storage, normalize_image
-from .services import decide_report
-from .district_setup import sync_seoul_districts
+from .services import aggregate_zones, decide_report
+
+DATA = Path(__file__).resolve().parent / "data"
 
 ITEMS = [
     ("ribbon", "가을 리본", 30, "decoration", "🎀"),
     ("star", "반짝이는 별", 50, "decoration", "⭐"),
     ("mushroom", "작은 버섯", 20, "ground", "🍄"),
 ]
+
+
+def load_districts():
+    return [
+        {**feature, "properties": {**feature["properties"], "marker": feature["properties"]["center"]}}
+        for feature in seoul_boundaries()["features"]
+    ]
+
+
+def seed_districts(db):
+    sync_seoul_districts(db.connection())
+    db.expire_all()
+    clear_zone_cache()
+
+
+def seed_forecast_spots(db, season_id):
+    """예측 지점 25곳을 넣는다. 구는 좌표로 판정하고 CSV의 구와 다르면 경고한다. 재실행하면 값을 갱신한다."""
+    shapes = [build_shape(f["id"], f["geometry"]) for f in load_districts()]
+    names = {f["id"]: f["properties"]["name"] for f in load_districts()}
+    with open(DATA / "forecast_spots.csv", encoding="utf-8-sig", newline="") as f:
+        for row in csv.DictReader(f):
+            lat, lng = float(row["lat"]), float(row["lng"])
+            zone_id = find_in_shapes(shapes, lat, lng)
+            expected = row.get("구(경계 파일 판정)")
+            if zone_id is None or (expected and names[zone_id] != expected):
+                print(f"Spot {row['name']}: zone mismatch (found {zone_id}, csv {expected}).")
+            spot = db.scalar(select(ForecastSpot).where(ForecastSpot.season_id == season_id, ForecastSpot.name == row["name"]))
+            values = {
+                "zone_id": zone_id,
+                "kind": row["kind"],
+                "latitude": lat,
+                "longitude": lng,
+                "peak_date": date.fromisoformat(row["peak_date"]),
+                "source": row["source"],
+            }
+            if spot is None:
+                db.add(ForecastSpot(season_id=season_id, name=row["name"], **values))
+            else:
+                for key, value in values.items():
+                    setattr(spot, key, value)
+    db.flush()
 
 
 def initialize(demo=False):
@@ -34,7 +91,8 @@ def initialize(demo=False):
                 )
             )
         db.flush()
-        sync_seoul_districts(db.connection())
+        seed_districts(db)
+        seed_forecast_spots(db, str(year))
         for iid, name, price, slot, icon in ITEMS:
             if not db.get(Item, iid):
                 db.add(Item(id=iid, name=name, price=price, slot=slot, icon=icon))
@@ -47,6 +105,8 @@ def initialize(demo=False):
                     db.add(User(email=email, nickname=nickname, role=role, password_hash=hash_password(password)))
     if demo:
         seed_reports(str(year))
+    with SessionLocal.begin() as db:
+        aggregate_zones(db)  # 첫 크론 전에도 지도에 예측 단계가 보이게 한다
     print(
         "Database migrated and seeded."
         + (" Local demo: demo@example.com / DemoPass123!; admin@example.com / AdminPass123!" if demo else "")
@@ -57,12 +117,12 @@ def seed_reports(season_id):
     with SessionLocal() as db:
         user_id = db.scalar(select(User.id).where(User.email == "demo@example.com"))
     for zone_id, asset, species, description in [
-        ("seoul-11230", "sample-ginkgo.png", "GINKGO", "샘플 제보 · 경희대 은행나무가 노랗게 물들었어요."),
-        ("seoul-11200", "sample-maple.png", "MAPLE", "샘플 제보 · 서울숲 산책길의 가을 풍경이에요."),
+        ("dongdaemun", "sample-ginkgo.png", "GINKGO", "샘플 제보 · 동대문구 은행나무가 노랗게 물들었어요."),
+        ("seongdong", "sample-maple.png", "MAPLE", "샘플 제보 · 서울숲 산책길의 가을 풍경이에요."),
     ]:
         with SessionLocal() as db:
-            legacy_key = {"seoul-11230": "seed:kyunghee", "seoul-11200": "seed:seoulforest"}[zone_id]
-            if db.scalar(select(Report.id).where(Report.user_id == user_id, Report.request_key.in_([f"seed:{zone_id}", legacy_key]))):
+            legacy_keys = {"dongdaemun": ["seed:kyunghee", "seed:seoul-11230"], "seongdong": ["seed:seoulforest", "seed:seoul-11200"]}[zone_id]
+            if db.scalar(select(Report.id).where(Report.user_id == user_id, Report.request_key.in_([f"seed:{zone_id}", *legacy_keys]))):
                 continue
             zone = db.get(Zone, zone_id)
             lat, lng = zone.latitude, zone.longitude
@@ -105,12 +165,14 @@ def seed_reports(season_id):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["init", "promote-admin"])
+    parser.add_argument("action", choices=["init", "promote-admin", "aggregate"])
     parser.add_argument("--demo", action="store_true")
     parser.add_argument("--email")
     args = parser.parse_args()
     if args.action == "init":
         initialize(args.demo)
+    elif args.action == "aggregate":
+        print(run_aggregation())
     elif not args.email:
         parser.error("--email is required")
     else:

@@ -4,8 +4,8 @@ from datetime import timedelta
 from sqlalchemy import select, update, and_, or_
 from .config import get_settings
 from .db import SessionLocal
-from .models import VerificationJob, Report, ReportVerification, Zone, now
-from .services import decide_report, refresh_zone, lock_zone, PENDING
+from .models import VerificationJob, Report, ReportVerification, now
+from .services import decide_report, PENDING
 from .storage import get_storage
 from .verifier import verify_photo, Decision, PROMPT_VERSION
 
@@ -122,7 +122,7 @@ def tick(limit=20):
 
 
 def reconcile():
-    """Recover uploads/events missed by a crashed API; expire the 7-day read models."""
+    """Recover uploads/events missed by a crashed API. 지도 집계는 1분 주기 집계(aggregate.py)가 맡는다."""
     s = get_settings()
     cutoff = now() - timedelta(seconds=s.upload_timeout_seconds)
     with SessionLocal() as db:
@@ -155,12 +155,6 @@ def reconcile():
                         .where(VerificationJob.report_id == report_id, VerificationJob.state == "WAIT_UPLOAD")
                         .values(state="DONE")
                     )
-    with SessionLocal() as db:
-        zone_ids = list(db.scalars(select(Zone.id)))
-    for zone_id in zone_ids:
-        with SessionLocal.begin() as db:
-            lock_zone(db, zone_id)
-            refresh_zone(db, zone_id)
 
 
 def handle_storage_event(args):

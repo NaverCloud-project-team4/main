@@ -8,6 +8,8 @@ from app.db import SessionLocal
 from app.models import Report, VerificationJob, ReportVerification, PointLedger, now
 from app.jobs import run_report, tick, reconcile, handle_storage_event
 from app.config import get_settings, Settings
+from app.services import aggregate_zones, forecast_date
+from app.foliage import stage_from_peak
 from app.storage import get_storage
 from app.verifier import parse_observation
 from conftest import upload
@@ -32,12 +34,15 @@ def test_full_cycle(client, auth, image_bytes):
     assert client.get(f"/api/reports/{rid}/photo?token=invalid").status_code == 403
     for _ in range(2):
         assert client.put(f"/api/reports/{rid}/like", headers=auth).json() == {"liked": True, "like_count": 1}
+    with SessionLocal.begin() as db:
+        aggregate_zones(db)
     zone = client.get("/api/zones").json()[0]
+    assert zone["source"] == "FORECAST"  # One report is below the three-report voting threshold.
     assert (zone["report_count"], zone["reporter_count"], zone["like_count"], zone["stage"], zone["tree_level"]) == (
         1,
         1,
         1,
-        "PEAK",
+        stage_from_peak(forecast_date(), get_settings().forecast_default_peak),
         1,
     )
     for _ in range(2):
@@ -139,6 +144,8 @@ def test_concurrent_events_and_likes(client, auth, image_bytes):
         results = list(executor.map(lambda _: client.put(f"/api/reports/{rid}/like", headers=auth), range(4)))
     assert all(r.status_code == 200 for r in results)
     assert client.get("/api/me", headers=auth).json()["points"] == 20
+    with SessionLocal.begin() as db:
+        aggregate_zones(db)
     assert client.get("/api/zones").json()[0]["like_count"] == 1
     with SessionLocal() as db:
         assert db.scalar(select(func.count()).select_from(ReportVerification)) == 1
@@ -226,8 +233,11 @@ def test_lost_upload_and_expiring_aggregates(client, auth, image_bytes):
     with SessionLocal.begin() as db:
         db.get(Report, next_id).created_at = now() - timedelta(days=10)
     reconcile()
+    with SessionLocal.begin() as db:
+        aggregate_zones(db)
     zone = client.get("/api/zones").json()[0]
-    assert zone["report_count"] == zone["tree_level"] == 0 and zone["stage"] == "UNKNOWN"
+    assert zone["report_count"] == zone["tree_level"] == 0
+    assert zone["source"] == "FORECAST"
     assert client.get("/api/me", headers=auth).json()["points"] == 20
 
 

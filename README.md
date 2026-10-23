@@ -128,3 +128,11 @@ NCP 전환을 위한 코드와 설정은 포함되어 있습니다. 공개 서�
 ### 서울 자치구 데이터
 
 `zones.district_code`는 5자리 자치구 코드, `boundary`는 WGS84 GeoJSON, `active`는 서비스 구역 여부입니다. 2026-10-01 SGIS 유래 경계를 사용하며 [출처·라이선스·재생성 방법](backend/app/data/README.md)을 포함했습니다. 새 설치와 기존 DB 모두 `app.cli init`으로 25개 구를 구성합니다. 기존 공원/캠퍼스 구역은 비활성화하고 제보 좌표로 구를 재배정하며 좋아요·검증·포인트 기록을 보존합니다. 적용 전 DB를 백업하세요. 오프라인 MySQL SQL은 스키마만 생성하므로 적용 뒤에도 `app.cli init`을 실행해야 합니다.
+
+## main 통합: 예측·집계와 지도/촬영 UI (2026-10-23)
+
+- 구역 ID는 main의 `jongno`, `dongdaemun`, `seongdong` 등 25개 영문 ID로 통일합니다. 기존 `seoul-11230` 등의 요청 ID도 호환하며, 기존 제보는 좌표로 재배정합니다. 비활성 과거 구역은 참조 보존을 위해 남겨둡니다.
+- 새 설치와 기존 두 마이그레이션 버전(`4a7d1c6e8f02`, `b7c1d4e92a10`) 모두 `PYTHONPATH=backend .venv/bin/python -m app.cli init`으로 통합 버전 `8d5e29c410b7`로 업그레이드합니다. 적용 전 실제 DB를 백업하세요. 기존 서버의 `DATABASE_URL` 등 설정은 유지하고, 배포 때 한 번 실행합니다. SQL 시드 파일을 별도로 중복 적용하지 않습니다.
+- 최근 3일의 최신 승인 제보 10건 중 3건 이상이면 다수결로 단계를 정하고, 부족하면 예측 지점 절정일을 사용합니다. 단계와 관심도는 1분 단위로 집계합니다. 공개 피드·좋아요 수·포인트는 각각의 요청 완료 시 반영되고 지도 집계에는 지연이 있습니다.
+- `scripts/dev.sh`와 로컬 Compose의 워커는 `app.worker --aggregate`로 실행됩니다. 외부 배포는 이 옵션 또는 예약 Cloud Function 중 하나로 집계를 실행하세요. `app.cli aggregate`와 키로 보호한 `POST /api/internal/aggregate`도 지원합니다. 지도 화면은 60초마다 갱신하고 단계 출처를 표시합니다.
+- production에는 16자 이상의 `AGGREGATE_KEY`가 추가로 필요합니다. 지도 JSON을 공개할 경우 `MAP_BUCKET`을 비공개 사진 버킷과 분리하세요. 정적 프론트는 기존처럼 Object Storage/Global Edge, API는 FastAPI로 배포합니다.

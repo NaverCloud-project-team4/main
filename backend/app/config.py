@@ -1,3 +1,4 @@
+from datetime import date
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -33,6 +34,16 @@ class Settings(BaseSettings):
     report_cooldown_seconds: int = 5
     report_points: int = 20
     activity_days: int = 7
+    stage_window_days: int = 3
+    stage_vote_size: int = 10
+    stage_min_reports: int = 3
+    forecast_default_peak: date = date(2026, 10, 31)
+    forecast_today: date | None = None
+    aggregate_key: SecretStr = SecretStr("")
+    map_bucket: str = ""
+    map_json_key: str = "map/zones.json"
+    map_json_acl: Literal["public-read", "private"] = "public-read"
+    map_json_cache_seconds: int = 30
     job_max_attempts: int = 3
     job_lease_seconds: int = 150
     retry_base_seconds: int = 5
@@ -51,6 +62,8 @@ class Settings(BaseSettings):
                 raise ValueError("Demo verification is disabled in production")
             if not self.public_api_url.startswith("https://"):
                 raise ValueError("Production PUBLIC_API_URL requires HTTPS")
+            if len(self.aggregate_key.get_secret_value()) < 16:
+                raise ValueError("Production requires AGGREGATE_KEY of at least 16 characters")
         if self.storage_backend == "s3" and not all(
             [self.s3_bucket, self.s3_access_key.get_secret_value(), self.s3_secret_key.get_secret_value()]
         ):

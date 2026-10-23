@@ -274,6 +274,74 @@
         }
       }
     },
+    "/api/map": {
+      "get": {
+        "tags": [
+          "지도"
+        ],
+        "summary": "Map Data",
+        "description": "CDN의 지도 JSON(map/zones.json)과 같은 내용. 지도 JSON을 못 읽을 때의 대체 경로.",
+        "operationId": "map_data_api_map_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/internal/aggregate": {
+      "post": {
+        "tags": [
+          "운영"
+        ],
+        "summary": "Aggregate",
+        "description": "1분 크론(Cloud Functions)이 호출한다. 단계·관심도를 다시 계산하고 지도 JSON을 올린다.",
+        "operationId": "aggregate_api_internal_aggregate_post",
+        "parameters": [
+          {
+            "name": "x-aggregate-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Aggregate-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/zones/boundaries": {
       "get": {
         "tags": [

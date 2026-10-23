@@ -25,6 +25,16 @@ SETTING_KEYS = (
     "REPORT_POINTS",
     "ACTIVITY_DAYS",
     "JOB_LEASE_SECONDS",
+    "AGGREGATE_KEY",
+    "STAGE_WINDOW_DAYS",
+    "STAGE_VOTE_SIZE",
+    "STAGE_MIN_REPORTS",
+    "FORECAST_DEFAULT_PEAK",
+    "FORECAST_TODAY",
+    "MAP_BUCKET",
+    "MAP_JSON_KEY",
+    "MAP_JSON_ACL",
+    "MAP_JSON_CACHE_SECONDS",
 )
 
 
@@ -41,5 +51,7 @@ def main(args):
 
     if args.get("scheduled") is True:
         reconcile()
-        return {"processed": tick(limit=1)}
+        from app.aggregate import run_aggregation
+        processed = tick(limit=1)
+        return {"processed": processed, "aggregation": run_aggregation()}
     return handle_storage_event(args)

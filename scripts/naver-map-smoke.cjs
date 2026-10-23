@@ -38,7 +38,7 @@ fs.mkdirSync(OUT, { recursive: true });
 
     await page.getByRole('button', { name: '성동구 선택', exact: true }).click();
     await page.locator('.zone-detail').getByRole('heading', { name: '성동구', exact: true }).waitFor();
-    assert.equal(await page.locator('[data-zone-id="seoul-11200"]').getAttribute('aria-pressed'), 'true');
+    assert.equal(await page.locator('[data-zone-id="seongdong"]').getAttribute('aria-pressed'), 'true');
     await page.getByRole('button', { name: '현재 위치에서 사진 제보하기', exact: true }).click();
     await page.locator('.report-location[data-location-status="ready"]').waitFor();
     await page.locator('.report-location').getByRole('heading', { name: '성동구', exact: true }).waitFor();

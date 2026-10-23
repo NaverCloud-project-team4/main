@@ -14,7 +14,10 @@ depends_on = None
 
 def upgrade():
     op.add_column("zones", sa.Column("district_code", sa.String(5), nullable=True))
-    op.add_column("zones", sa.Column("boundary", sa.JSON(), nullable=True))
+    # Both branches introduced boundary. Reuse the deployed column when present.
+    # Offline combined DDL lets the forecast branch create it once.
+    if not context.is_offline_mode() and "boundary" not in {c["name"] for c in sa.inspect(op.get_bind()).get_columns("zones")}:
+        op.add_column("zones", sa.Column("boundary", sa.JSON(), nullable=True))
     op.add_column("zones", sa.Column("active", sa.Boolean(), nullable=False, server_default=sa.true()))
     op.create_index("uq_zone_district_code", "zones", ["district_code"], unique=True)
     if context.is_offline_mode():
@@ -29,5 +32,6 @@ def downgrade():
     # Polygon ids and report associations are preserved; no report, like, or points are removed.
     op.drop_index("uq_zone_district_code", table_name="zones")
     op.drop_column("zones", "active")
-    op.drop_column("zones", "boundary")
+    if context.is_offline_mode() or "boundary" in {c["name"] for c in sa.inspect(op.get_bind()).get_columns("zones")}:
+        op.drop_column("zones", "boundary")
     op.drop_column("zones", "district_code")

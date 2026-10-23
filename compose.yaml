@@ -49,7 +49,7 @@ services:
       retries: 5
   worker:
     <<: *app
-    command: [python, -m, app.worker]
+    command: [python, -m, app.worker, --aggregate]
     depends_on:
       migrate:
         condition: service_completed_successfully

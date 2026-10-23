@@ -12,7 +12,13 @@ BOUNDARY_FILE = Path(__file__).parent / "data" / "seoul_districts_20261001.geojs
 
 @lru_cache(maxsize=1)
 def seoul_boundaries():
-    return json.loads(BOUNDARY_FILE.read_text())
+    source = json.loads(BOUNDARY_FILE.read_text())
+    ids = {f["properties"]["name"]: f["id"] for f in json.loads(
+        (BOUNDARY_FILE.parent / "zones_seoul25.geojson").read_text()
+    )["features"]}
+    for feature in source["features"]:
+        feature["id"] = ids[feature["properties"]["name"]]
+    return source
 
 
 def ring_location(x, y, ring):
@@ -36,6 +42,8 @@ def ring_location(x, y, ring):
 def geometry_covers(geometry, latitude, longitude):
     if not geometry:
         return False
+    if isinstance(geometry, str):
+        geometry = json.loads(geometry)
     bounds = geometry.get("bbox")
     if bounds and not (
         bounds[0] - 1e-10 <= longitude <= bounds[2] + 1e-10 and bounds[1] - 1e-10 <= latitude <= bounds[3] + 1e-10
@@ -66,3 +74,10 @@ def district_at(latitude, longitude):
         ),
         None,
     )
+
+
+def canonical_zone_id(zone_id):
+    if zone_id and zone_id.startswith("seoul-"):
+        return next((f["id"] for f in seoul_boundaries()["features"]
+                     if f["properties"]["district_code"] == zone_id[6:]), zone_id)
+    return zone_id

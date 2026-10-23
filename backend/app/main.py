@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import json
 import logging
 import time
@@ -22,8 +23,6 @@ from .models import (
     VerificationJob,
     ReportVerification,
     ReportLike,
-    ZoneActivity,
-    ZoneStatus,
     PointLedger,
     Item,
     UserItem,
@@ -34,8 +33,9 @@ from .models import (
 from .schemas import LoginIn, RegisterIn, UserOut, AuthOut, ReportOut, ReportPage, ReviewIn, EquipIn, Stage, Species, LocationIn
 from .security import current_user, optional_user, admin_user, hash_password, check_password, make_token
 from .storage import get_storage, normalize_image
-from .geography import geometry_covers, seoul_boundaries
-from .services import set_like, decide_report, lock_zone, resolve_zone
+from .geography import geometry_covers, seoul_boundaries, canonical_zone_id
+from .services import set_like, decide_report, resolve_zone, zone_summaries, map_document
+from .aggregate import run_aggregation
 from .jobs import enqueue
 
 s = get_settings()
@@ -268,30 +268,34 @@ def zones(
     min_lng: float | None = Query(None, ge=-180, le=180),
     max_lng: float | None = Query(None, ge=-180, le=180),
 ):
-    q = select(Zone, ZoneStatus, ZoneActivity).join(ZoneStatus).join(ZoneActivity).where(Zone.active.is_(True))
     bounds = (min_lat, max_lat, min_lng, max_lng)
     if any(v is not None for v in bounds):
         if any(v is None for v in bounds) or min_lat > max_lat or min_lng > max_lng:
             raise HTTPException(422, "지도 범위 좌표 4개를 올바르게 전달해주세요.")
-        q = q.where(Zone.latitude.between(min_lat, max_lat), Zone.longitude.between(min_lng, max_lng))
-    return [
-        {
-            "id": z.id,
-            "name": z.name,
-            "latitude": z.latitude,
-            "longitude": z.longitude,
-            "district_code": z.district_code,
-            "stage": st.stage,
-            "latest_report_id": st.latest_report_id,
-            "report_count": a.report_count,
-            "reporter_count": a.reporter_count,
-            "like_count": a.like_count,
-            "interest_score": a.score,
-            "tree_level": a.tree_level,
-            "updated_at": iso(a.updated_at),
-        }
-        for z, st, a in db.execute(q.order_by(Zone.name))
-    ]
+    else:
+        bounds = None
+    return zone_summaries(db, bounds, legacy_radius=True)
+
+
+@app.get("/api/map", tags=["지도"])
+def map_data(db: DB):
+    """CDN의 지도 JSON(map/zones.json)과 같은 내용. 지도 JSON을 못 읽을 때의 대체 경로."""
+    return map_document(db)
+
+
+@app.post("/api/internal/aggregate", tags=["운영"])
+def aggregate(x_aggregate_key: Annotated[str | None, Header()] = None):
+    """1분 크론(Cloud Functions)이 호출한다. 단계·관심도를 다시 계산하고 지도 JSON을 올린다."""
+    expected = s.aggregate_key.get_secret_value()
+    if not expected:
+        raise HTTPException(503, "집계 키가 설정되지 않았습니다.")
+    if not x_aggregate_key or not hmac.compare_digest(x_aggregate_key, expected):
+        raise HTTPException(403, "집계 키가 올바르지 않습니다.")
+    try:
+        return run_aggregation()
+    except Exception:
+        logger.exception("aggregate_failed")
+        raise HTTPException(502, "집계 또는 지도 JSON 업로드에 실패했습니다.")
 
 
 @app.get("/api/zones/boundaries", tags=["지도"])
@@ -348,6 +352,7 @@ def create_report(
         image = normalize_image(raw)
     except ValueError as exc:
         raise HTTPException(422, str(exc))
+    zone_id = canonical_zone_id(zone_id)
     if zone_id is None:
         match = resolve_zone(db, latitude, longitude)
         if match is None:
@@ -381,8 +386,6 @@ def create_report(
         if old.request_fingerprint != fingerprint:
             raise HTTPException(409, "같은 요청 키로 다른 제보를 보낼 수 없습니다.")
         return serialize_reports(db, [old], user)[0]
-    # Match the zone-before-user lock order used by approval transactions on MySQL.
-    lock_zone(db, zone_id)
     cutoff = now() - timedelta(seconds=s.report_cooldown_seconds)
     allowed = db.execute(
         update(User)
@@ -449,7 +452,7 @@ def reports(
 ):
     q = select(Report).join(Zone).where(Report.status == "APPROVED", Zone.active.is_(True))
     if zone_id:
-        q = q.where(Report.zone_id == zone_id)
+        q = q.where(Report.zone_id == canonical_zone_id(zone_id))
     return report_page(db, q, user, page, page_size, sort)
 
 

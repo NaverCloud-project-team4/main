@@ -94,17 +94,17 @@ def test_conversion_preserves_reports_likes_points_and_rebuilds_cache(client, au
         with engine.begin() as connection:
             sync_seoul_districts(connection)
         with SessionLocal() as db:
-            assert db.get(Report, report["id"]).zone_id == "seoul-11230"
+            assert db.get(Report, report["id"]).zone_id == "dongdaemun"
             assert db.get(User, user_id).points == 20
             assert db.scalar(select(func.count()).select_from(PointLedger)) == 1
             assert db.scalar(select(func.count()).select_from(ReportLike)) == 1
-            assert db.get(ZoneActivity, "seoul-11230").report_count == 1
-            assert db.get(ZoneActivity, "seoul-11230").like_count == 1
+            assert db.get(ZoneActivity, "dongdaemun").report_count == 1
+            assert db.get(ZoneActivity, "dongdaemun").like_count == 1
             assert db.get(ZoneActivity, "test-zone").report_count == 0
             assert db.get(Zone, "test-zone").active is False
     # The feed filter and real submission agree on the administrative id.
-    assert client.get("/api/reports?zone_id=seoul-11230").json()["total"] == 1
-    response = upload(client, auth, image_bytes, zone_id="seoul-11200", key="wrong-gu")
+    assert client.get("/api/reports?zone_id=dongdaemun").json()["total"] == 1
+    response = upload(client, auth, image_bytes, zone_id="seongdong", key="wrong-gu")
     assert response.status_code == 422
 
 
@@ -116,5 +116,18 @@ def test_new_report_uses_district_from_coordinates(seoul, client, auth, image_by
         files={"photo": ("tree.png", image_bytes, "image/png")},
     )
     assert response.status_code == 202, response.text
-    assert response.json()["zone_id"] == "seoul-11200"
+    assert response.json()["zone_id"] == "seongdong"
     assert response.json()["zone_name"] == "성동구"
+
+
+def test_legacy_local_id_still_works_with_main_ids(seoul, client, auth, image_bytes):
+    from app.jobs import run_report
+
+    response = upload(client, auth, image_bytes, zone_id="seoul-11230")
+    assert response.status_code == 202, response.text
+    assert response.json()["zone_id"] == "dongdaemun"
+    assert run_report(response.json()["id"])
+    legacy = client.get("/api/reports?zone_id=seoul-11230").json()
+    current = client.get("/api/reports?zone_id=dongdaemun").json()
+    assert legacy["total"] == current["total"] == 1
+    assert legacy["items"][0]["id"] == current["items"][0]["id"]

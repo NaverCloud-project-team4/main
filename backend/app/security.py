@@ -37,8 +37,8 @@ def make_token(user: User) -> str:
             "sub": user.id,
             "iat": now(),
             "exp": now() + timedelta(minutes=s.token_minutes),
-            "iss": "kkawooroong",
-            "aud": "kkawooroong-api",
+            "iss": "kauroong",
+            "aud": "kauroong-api",
         },
         s.jwt_secret.get_secret_value(),
         algorithm="HS256",
@@ -53,8 +53,8 @@ def optional_user(credentials: HTTPAuthorizationCredentials | None = Depends(bea
             credentials.credentials,
             get_settings().jwt_secret.get_secret_value(),
             algorithms=["HS256"],
-            issuer="kkawooroong",
-            audience="kkawooroong-api",
+            issuer="kauroong",
+            audience="kauroong-api",
             options={"require": ["exp", "sub", "iat"]},
         )
         user = db.get(User, claims["sub"])

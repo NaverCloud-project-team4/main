@@ -1,5 +1,6 @@
 """Idempotent Seoul district setup without changing user points/likes/verification."""
 
+import json
 import sqlalchemy as sa
 from .geography import seoul_boundaries, district_at
 
@@ -25,7 +26,7 @@ def sync_seoul_districts(connection):
             latitude=properties["center"][1],
             longitude=properties["center"][0],
             district_code=properties["district_code"],
-            boundary=feature["geometry"],
+            boundary=feature["geometry"] if isinstance(zones.c.boundary.type, sa.JSON) else json.dumps(feature["geometry"]),
             active=True,
             radius_m=0,
         )
@@ -33,7 +34,7 @@ def sync_seoul_districts(connection):
         if connection.scalar(sa.select(zones.c.id).where(zones.c.id == zid)):
             connection.execute(zones.update().where(zones.c.id == zid).values(**values))
         else:
-            connection.execute(zones.insert().values(id=zid, revision=0, **values))
+            connection.execute(zones.insert().values(id=zid, **({"revision": 0} if "revision" in zones.c else {}), **values))
         if not connection.scalar(sa.select(statuses.c.zone_id).where(statuses.c.zone_id == zid)):
             connection.execute(statuses.insert().values(zone_id=zid, stage="UNKNOWN", updated_at=timestamp))
         if not connection.scalar(sa.select(activities.c.zone_id).where(activities.c.zone_id == zid)):
@@ -54,6 +55,11 @@ def sync_seoul_districts(connection):
         district = district_at(report.latitude, report.longitude)
         if district and report.zone_id != district["id"]:
             connection.execute(reports.update().where(reports.c.id == report.id).values(zone_id=district["id"]))
+    if sa.inspect(connection).has_table("forecast_spots"):
+        spots = sa.Table("forecast_spots", metadata, autoload_with=connection)
+        for spot in connection.execute(sa.select(spots.c.id, spots.c.latitude, spots.c.longitude)):
+            district = district_at(spot.latitude, spot.longitude)
+            connection.execute(spots.update().where(spots.c.id == spot.id).values(zone_id=district["id"] if district else None))
     # Clear stale pointers/counts for inactive legacy areas. Rebuild active district caches in cli init.
     connection.execute(statuses.update().values(latest_report_id=None, stage="UNKNOWN", updated_at=timestamp))
     connection.execute(
