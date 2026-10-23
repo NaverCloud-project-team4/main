@@ -1,0 +1,26 @@
+﻿name,kind,lat,lng,peak_date,source,선정 근거 링크,좌표 신뢰도(확인/추정),구(경계 파일 판정),구 경계까지 거리(m),경계 200m 이내,좌표 출처
+삼청동길,GINKGO,37.5837936,126.9819183,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do | https://mediahub.seoul.go.kr/archives/2016017,확인,종로구,1047,,Google Places; Wikipedia 삼청동 중심과 약 200m 차이
+정동길,GINKGO,37.5648648,126.9754485,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do | https://mediahub.seoul.go.kr/archives/2012714,확인,중구,493,,Google Places(덕수궁 돌담길)
+소월로,GINKGO,37.5530394,126.9814272,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,확인,용산구,93,Y,"Google Places(남산도서관, 소월로 109)"
+서울숲 은행나무숲,GINKGO,37.5443878,127.0374424,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do | https://mediahub.seoul.go.kr/archives/2016295,확인,성동구,946,,Google Places; Wikipedia 서울숲과 약 210m 차이
+워커힐로,MOUNTAIN,37.5518658,127.1007676,2026-10-31,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,확인,광진구,905,,Google Places(아차산생태공원)
+회기로,GINKGO,37.589756,127.057977,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,확인,동대문구,1130,,Google Places(회기역)
+봉수대공원,MOUNTAIN,37.6075262,127.0920854,2026-10-31,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,확인,중랑구,1121,,Google Places(봉수대공원)
+안감내길,GINKGO,37.5892014,127.0181027,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,추정,성북구,830,,"Google Places(성북천, 길 근처 기준점)"
+4.19로,MOUNTAIN,37.6484962,127.0076599,2026-10-31,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do | https://mediahub.seoul.go.kr/archives/2016017,확인,강북구,538,,Google Places(4.19민주묘지)
+노해로,GINKGO,37.6553392,127.0490745,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,확인,도봉구,388,,Google Places(창동역)
+한글비석길,GINKGO,37.6447492,127.0743468,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,추정,노원구,1595,,"Google Places(한글비근린공원, 길 근처 기준점)"
+진흥로,GINKGO,37.6191594,126.9355669,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,추정,은평구,1306,,"Google Places(불광동 중심, 길 근처 기준점)"
+연세대 은행나무길,GINKGO,37.5663937,126.9387066,2026-10-30,산림청 수종별 예측(전국),https://mediahub.seoul.go.kr/archives/2012714,확인,서대문구,984,,Google Places(연세대 신촌캠퍼스)
+매봉산자락길(마포),MOUNTAIN,37.5662557,126.8992272,2026-10-31,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,확인,마포구,931,,Google Places(매봉산 자락길)
+용왕산 둘레길,MOUNTAIN,37.542222,126.8775,2026-10-31,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do | https://mediahub.seoul.go.kr/archives/2016017,확인,양천구,539,,Google Places(용왕산)
+등양초교 앞길,GINKGO,37.5648029,126.8446617,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,확인,강서구,1090,,Google Places(서울등양초등학교)
+매봉산자락길(구로),MOUNTAIN,37.5019874,126.8399836,2026-10-31,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,추정,구로구,116,Y,"Google Places(잣절공원, 인접 기준점)"
+호압사길,MOUNTAIN,37.4525466,126.9255418,2026-10-31,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do | https://mediahub.seoul.go.kr/archives/2016017,확인,금천구,15,Y,Google Places(호압사)
+여의공원로,GINKGO,37.5262751,126.9228132,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,확인,영등포구,1164,,Google Places(여의도공원)
+현충원 은행나무길,GINKGO,37.5021599,126.9743657,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do | https://mediahub.seoul.go.kr/archives/2012512,확인,동작구,552,,Google Places(국립서울현충원)
+관악로,GINKGO,37.48121,126.952712,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,확인,관악구,804,,Google Places(서울대입구역)
+매헌 시민의숲,MOUNTAIN,37.4706853,127.0356004,2026-10-31,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,확인,서초구,654,,Google Places(매헌 시민의숲)
+가로수길,GINKGO,37.5210566,127.0228686,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do,확인,강남구,407,,Google Places(가로수길)
+위례성길,GINKGO,37.5206868,127.1214941,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do | https://www.newsis.com/view/NISX20191105_0000820601,확인,송파구,613,,Google Places(올림픽공원 평화의문)
+올림픽로(암사),GINKGO,37.5601719,127.1298794,2026-10-30,산림청 수종별 예측(전국),https://www.seoul.go.kr/storyw/autumn/list.do | https://mediahub.seoul.go.kr/archives/2016017,확인,강동구,686,,Google Places(암사동 선사유적지)
