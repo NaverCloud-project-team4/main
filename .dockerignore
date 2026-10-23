@@ -1,0 +1,10 @@
+.git
+.venv
+.data
+.env
+.env.*
+frontend/node_modules
+frontend/dist
+artifacts
+**/__pycache__
+**/.DS_Store
