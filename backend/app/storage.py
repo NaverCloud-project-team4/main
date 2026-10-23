@@ -1,5 +1,6 @@
 from io import BytesIO
 from pathlib import Path
+import json
 import os
 import warnings
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -101,6 +102,32 @@ class S3Storage:
             "get_object", Params={"Bucket": self.bucket, "Key": key}, ExpiresIn=300
         )
 
+    def put_json(self, key: str, data: bytes, bucket: str, acl: str, cache_seconds: int):
+        self.client.put_object(
+            Bucket=bucket,
+            Key=key,
+            Body=data,
+            ContentType="application/json; charset=utf-8",
+            CacheControl=f"public, max-age={cache_seconds}",
+            ACL=acl,
+        )
+
 
 def get_storage():
     return S3Storage() if get_settings().storage_backend == "s3" else LocalStorage()
+
+
+def publish_json(payload: dict) -> str:
+    """지도 JSON을 올린다. S3에서는 MAP_BUCKET(없으면 S3_BUCKET)의 MAP_JSON_KEY에, 로컬에서는 .data/public 아래에 쓴다."""
+    s = get_settings()
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode()
+    if s.storage_backend == "s3":
+        bucket = s.map_bucket or s.s3_bucket
+        S3Storage().put_json(s.map_json_key, body, bucket, s.map_json_acl, s.map_json_cache_seconds)
+        return f"s3://{bucket}/{s.map_json_key}"
+    path = s.storage_dir.parent / "public" / s.map_json_key
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_bytes(body)
+    os.replace(temporary, path)
+    return str(path)
