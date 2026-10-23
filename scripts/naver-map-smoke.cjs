@@ -8,7 +8,10 @@ fs.mkdirSync(OUT, { recursive: true });
 
 (async () => {
   const browser = await chromium.launch({ headless: true, ...(process.env.CHROME_EXECUTABLE ? { executablePath: process.env.CHROME_EXECUTABLE } : {}) });
-  const page = await browser.newPage({ viewport: { width: 1440, height: 1080 } });
+  // Controlled browser position for repeatable tests; this is not a real device GPS reading.
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1080 },
+    permissions: ['geolocation'], geolocation: { latitude: 37.5445, longitude: 127.0374, accuracy: 15 } });
+  const page = await context.newPage();
   const errors = [], vendorFailures = [], tiles = [];
   let sdkLoaded = false;
   page.on('pageerror', e => errors.push(e.message));
@@ -28,32 +31,34 @@ fs.mkdirSync(OUT, { recursive: true });
     await page.locator('.naver-zone-marker').first().waitFor();
     await page.waitForFunction(() => [...document.querySelectorAll('.naver-map-canvas img')].some(img => img.complete && img.naturalWidth >= 128));
     assert.ok(sdkLoaded, 'Actual NAVER SDK responded with 200');
-    assert.equal(await page.locator('.naver-zone-marker').count(), 5);
+    assert.equal(await page.locator('.naver-zone-marker').count(), 25);
     assert.ok(tiles.length > 0, 'Actual NAVER map images loaded');
     await page.screenshot({ path: path.join(OUT, 'naver-map-desktop.png'), fullPage: true });
-    mark('live NAVER SDK, map images and five API-backed zone markers');
+    mark('live NAVER SDK, map images and 25 API-backed district markers');
 
-    await page.getByRole('button', { name: '서울숲 선택', exact: true }).click();
-    await page.locator('.zone-detail').getByRole('heading', { name: '서울숲', exact: true }).waitFor();
-    assert.equal(await page.locator('[data-zone-id="seoulforest"]').getAttribute('aria-pressed'), 'true');
-    await page.getByRole('button', { name: '이 구역 사진 제보하기', exact: true }).click();
-    assert.equal(await page.getByLabel('제보 구역', { exact: true }).inputValue(), 'seoulforest');
+    await page.getByRole('button', { name: '성동구 선택', exact: true }).click();
+    await page.locator('.zone-detail').getByRole('heading', { name: '성동구', exact: true }).waitFor();
+    assert.equal(await page.locator('[data-zone-id="seoul-11200"]').getAttribute('aria-pressed'), 'true');
+    await page.getByRole('button', { name: '현재 위치에서 사진 제보하기', exact: true }).click();
+    await page.locator('.report-location[data-location-status="ready"]').waitFor();
+    await page.locator('.report-location').getByRole('heading', { name: '성동구', exact: true }).waitFor();
+    assert.equal(await page.getByLabel('제보 구역', { exact: true }).count(), 0);
     assert.equal(await page.locator('.naver-zone-map').count(), 0);
-    mark('native map marker selects zone and passes it to photo submission');
+    mark('map marker selects a zone; photo submission resolves controlled browser coordinates');
 
     await page.locator('.sidebar nav').getByRole('button', { name: '지도', exact: true }).click();
     await page.locator('.naver-zone-map[data-map-status="ready"]').waitFor();
-    await page.getByRole('button', { name: '전체 구역 보기', exact: true }).click();
+    await page.getByRole('button', { name: '서울 전체 보기', exact: true }).click();
     assert.equal(await page.locator('script#kauroong-naver-maps-sdk').count(), 1);
-    assert.equal(await page.locator('.naver-zone-marker').count(), 5);
+    assert.equal(await page.locator('.naver-zone-marker').count(), 25);
     // Native keyboard input selects the HTML marker without a mouse.
-    await page.getByRole('button', { name: '남산 산책길 선택', exact: true }).focus();
+    await page.getByRole('button', { name: '용산구 선택', exact: true }).focus();
     await page.keyboard.press('Enter');
-    await page.locator('.zone-detail').getByRole('heading', { name: '남산 산책길', exact: true }).waitFor();
+    await page.locator('.zone-detail').getByRole('heading', { name: '용산구', exact: true }).waitFor();
     mark('map unmount/remount, singleton SDK and keyboard marker selection');
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.getByRole('button', { name: '전체 구역 보기', exact: true }).click();
+    await page.getByRole('button', { name: '서울 전체 보기', exact: true }).click();
     await page.waitForTimeout(500); // Allow native map resize and tile repaint.
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Mobile page does not overflow');
     assert.ok((await page.locator('.naver-map-canvas').boundingBox()).width > 300);
@@ -68,8 +73,8 @@ fs.mkdirSync(OUT, { recursive: true });
     const offlinePage = await offline.newPage();
     await offlinePage.goto('http://127.0.0.1:5173/');
     await offlinePage.locator('.naver-zone-map[data-map-status="error"]').waitFor();
-    await offlinePage.locator('.zone-chip').filter({ hasText: '서울숲' }).click();
-    await offlinePage.locator('.zone-detail').getByRole('heading', { name: '서울숲', exact: true }).waitFor();
+    await offlinePage.locator('.zone-chip').filter({ hasText: '성동구' }).click();
+    await offlinePage.locator('.zone-detail').getByRole('heading', { name: '성동구', exact: true }).waitFor();
     await offline.close();
     mark('network error shown; zone selection still works without the SDK');
 

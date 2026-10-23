@@ -3,6 +3,7 @@ from math import asin, cos, radians, sin, sqrt
 from fastapi import HTTPException
 from sqlalchemy import select, update, func
 from sqlalchemy.orm import Session
+from .geography import geometry_covers
 from .config import get_settings
 from .models import Report, ReportLike, PointLedger, User, Zone, ZoneStatus, ZoneActivity, now
 
@@ -17,6 +18,14 @@ def distance_m(lat1, lng1, lat2, lng2):
         + cos(radians(lat1)) * cos(radians(lat2)) * sin(radians(lng2 - lng1) / 2) ** 2
     )
     return 6_371_000 * 2 * asin(min(1, sqrt(a)))
+
+
+def resolve_zone(db: Session, latitude: float, longitude: float):
+    """Resolve an active administrative district using its actual polygon."""
+    for zone in db.scalars(select(Zone).where(Zone.active.is_(True)).order_by(Zone.id)):
+        if geometry_covers(zone.boundary, latitude, longitude):
+            return zone, distance_m(latitude, longitude, zone.latitude, zone.longitude)
+    return None
 
 
 def lock_zone(db: Session, zone_id: str):

@@ -180,3 +180,23 @@ CREATE TABLE zone_status (
 );
 
 INSERT INTO alembic_version (version_num) VALUES ('947f5a336531');
+
+-- Running upgrade 947f5a336531 -> 2b8c341f902a
+
+ALTER TABLE zones ADD COLUMN district_code VARCHAR(5);
+
+ALTER TABLE zones ADD COLUMN boundary JSON;
+
+ALTER TABLE zones ADD COLUMN active BOOL NOT NULL DEFAULT true;
+
+CREATE UNIQUE INDEX uq_zone_district_code ON zones (district_code);
+
+UPDATE alembic_version SET version_num='2b8c341f902a' WHERE alembic_version.version_num = '947f5a336531';
+
+-- Running upgrade 2b8c341f902a -> 4a7d1c6e8f02
+
+ALTER TABLE reports ADD COLUMN photo_source VARCHAR(16) NOT NULL DEFAULT 'legacy';
+
+ALTER TABLE reports ADD COLUMN location_source VARCHAR(16) NOT NULL DEFAULT 'legacy';
+
+UPDATE alembic_version SET version_num='4a7d1c6e8f02' WHERE alembic_version.version_num = '2b8c341f902a';

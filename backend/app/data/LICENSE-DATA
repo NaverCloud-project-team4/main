@@ -1,0 +1,10 @@
+서울 경계 데이터 라이선스 및 출처
+
+가공 데이터: vuski/admdongkor, Creative Commons Attribution 4.0 International (CC BY 4.0).
+라이선스 전문: https://creativecommons.org/licenses/by/4.0/legalcode
+원본 라이선스 고지: https://github.com/vuski/admdongkor/blob/3bc00489b76696db864bdbea4b19985cdfa8b403/LICENSE-DATA
+원자료: 통계청 통계지리정보서비스(SGIS), 공공누리 제1유형.
+
+본 데이터는 통계청 통계지리정보서비스(SGIS, https://sgis.kostat.go.kr)에서 공공누리 제1유형으로 개방한 행정동 경계를 가공한 것이며(가공: vuski/admdongkor, https://github.com/vuski/admdongkor), CC BY 4.0으로 배포됩니다. 까우룽까우룽에서 서울 행정동을 25개 자치구로 병합했습니다.
+
+상세 출처, 변경 내용 및 재생성 방법은 README.md와 source.json을 참조하세요.

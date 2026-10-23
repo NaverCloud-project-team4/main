@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, Float, DateTime, ForeignKey, UniqueConstraint, CheckConstraint, Index
+from sqlalchemy import String, Integer, Float, DateTime, ForeignKey, UniqueConstraint, CheckConstraint, Index, JSON, Boolean
 from sqlalchemy.orm import Mapped, mapped_column
 from .db import Base
 
@@ -40,8 +40,13 @@ class Zone(Base):
     name: Mapped[str] = mapped_column(String(80))
     latitude: Mapped[float] = mapped_column(Float)
     longitude: Mapped[float] = mapped_column(Float)
+    # Legacy radius retained for old rows; active districts use boundary polygons.
     radius_m: Mapped[int] = mapped_column(default=1500)
     revision: Mapped[int] = mapped_column(default=0)
+    district_code: Mapped[str | None] = mapped_column(String(5))
+    boundary: Mapped[dict | None] = mapped_column(JSON)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    __table_args__ = (Index("uq_zone_district_code", "district_code", unique=True),)
 
 
 class Report(Base):
@@ -57,6 +62,8 @@ class Report(Base):
     latitude: Mapped[float] = mapped_column(Float)
     longitude: Mapped[float] = mapped_column(Float)
     object_key: Mapped[str] = mapped_column(String(255), unique=True)
+    photo_source: Mapped[str] = mapped_column(String(16), default="legacy", server_default="legacy")
+    location_source: Mapped[str] = mapped_column(String(16), default="legacy", server_default="legacy")
     photo_hash: Mapped[str] = mapped_column(String(64))
     request_key: Mapped[str] = mapped_column(String(100))
     request_fingerprint: Mapped[str] = mapped_column(String(64))

@@ -6,18 +6,12 @@ from alembic.config import Config
 from sqlalchemy import select
 from .config import get_settings, ROOT
 from .db import SessionLocal
-from .models import User, Season, Zone, ZoneStatus, ZoneActivity, Item, Report, ReportVerification, uid, now
+from .models import User, Season, Zone, Item, Report, ReportVerification, uid, now
 from .security import hash_password
 from .storage import get_storage, normalize_image
 from .services import decide_report
+from .district_setup import sync_seoul_districts
 
-ZONES = [
-    ("kyunghee", "경희대 일대", 37.5964, 127.0525, 1300),
-    ("hoegi", "회기역 산책로", 37.5895, 127.0577, 800),
-    ("seoulforest", "서울숲", 37.5445, 127.0374, 1300),
-    ("namsan", "남산 산책길", 37.5512, 126.9882, 1600),
-    ("olympic", "올림픽공원", 37.5207, 127.1216, 1800),
-]
 ITEMS = [
     ("ribbon", "가을 리본", 30, "decoration", "🎀"),
     ("star", "반짝이는 별", 50, "decoration", "⭐"),
@@ -39,12 +33,8 @@ def initialize(demo=False):
                     id=str(year), name=f"{year} 가을", starts_at=datetime(year, 1, 1), ends_at=datetime(year + 1, 1, 1)
                 )
             )
-        for zid, name, lat, lng, radius in ZONES:
-            if not db.get(Zone, zid):
-                db.add(Zone(id=zid, name=name, latitude=lat, longitude=lng, radius_m=radius))
-                db.flush()
-                db.add(ZoneStatus(zone_id=zid))
-                db.add(ZoneActivity(zone_id=zid))
+        db.flush()
+        sync_seoul_districts(db.connection())
         for iid, name, price, slot, icon in ITEMS:
             if not db.get(Item, iid):
                 db.add(Item(id=iid, name=name, price=price, slot=slot, icon=icon))
@@ -67,11 +57,12 @@ def seed_reports(season_id):
     with SessionLocal() as db:
         user_id = db.scalar(select(User.id).where(User.email == "demo@example.com"))
     for zone_id, asset, species, description in [
-        ("kyunghee", "sample-ginkgo.png", "GINKGO", "샘플 제보 · 경희대 은행나무가 노랗게 물들었어요."),
-        ("seoulforest", "sample-maple.png", "MAPLE", "샘플 제보 · 서울숲 산책길의 가을 풍경이에요."),
+        ("seoul-11230", "sample-ginkgo.png", "GINKGO", "샘플 제보 · 경희대 은행나무가 노랗게 물들었어요."),
+        ("seoul-11200", "sample-maple.png", "MAPLE", "샘플 제보 · 서울숲 산책길의 가을 풍경이에요."),
     ]:
         with SessionLocal() as db:
-            if db.scalar(select(Report.id).where(Report.user_id == user_id, Report.request_key == f"seed:{zone_id}")):
+            legacy_key = {"seoul-11230": "seed:kyunghee", "seoul-11200": "seed:seoulforest"}[zone_id]
+            if db.scalar(select(Report.id).where(Report.user_id == user_id, Report.request_key.in_([f"seed:{zone_id}", legacy_key]))):
                 continue
             zone = db.get(Zone, zone_id)
             lat, lng = zone.latitude, zone.longitude

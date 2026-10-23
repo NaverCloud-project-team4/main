@@ -19,6 +19,7 @@ from app.main import app
 from app.db import Base, engine, SessionLocal
 from app.models import User, Season, Zone, ZoneActivity, ZoneStatus, Item
 from app.security import hash_password
+from app.geography import seoul_boundaries
 
 
 @pytest.fixture(autouse=True)
@@ -30,7 +31,9 @@ def database():
         db.add(
             Season(id=str(year), name="테스트 가을", starts_at=datetime(year, 1, 1), ends_at=datetime(year + 1, 1, 1))
         )
-        db.add(Zone(id="test-zone", name="테스트 구역", latitude=37.5964, longitude=127.0525, radius_m=1500))
+        feature = next(f for f in seoul_boundaries()['features'] if f['id'] == 'seoul-11230')
+        db.add(Zone(id="test-zone", name="동대문구", latitude=37.5964, longitude=127.0525,
+                    radius_m=0, district_code="11230", boundary=feature['geometry']))
         db.flush()
         db.add(ZoneActivity(zone_id="test-zone"))
         db.add(ZoneStatus(zone_id="test-zone"))
