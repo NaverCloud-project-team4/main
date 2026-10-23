@@ -1,0 +1,58 @@
+# Optional local MySQL run. Demo credentials are for this local-only environment.
+x-app: &app
+  build: .
+  environment: &env
+    ENVIRONMENT: local
+    DATABASE_URL: mysql+pymysql://app:local-app-password@mysql:3306/kkawooroong?charset=utf8mb4
+    JWT_SECRET: local-compose-only-change-before-deployment-2026
+    STORAGE_BACKEND: local
+    STORAGE_DIR: /srv/.data/photos
+    VERIFICATION_MODE: demo
+    PUBLIC_API_URL: http://127.0.0.1:8000
+    CORS_ORIGINS: http://127.0.0.1:5173,http://localhost:5173
+  volumes:
+    - photos:/srv/.data/photos
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: kkawooroong
+      MYSQL_USER: app
+      MYSQL_PASSWORD: local-app-password
+      MYSQL_ROOT_PASSWORD: local-root-password
+    ports:
+      - 127.0.0.1:3307:3306
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: [CMD, mysqladmin, ping, -h, localhost]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  migrate:
+    <<: *app
+    command: [python, -m, app.cli, init, --demo]
+    depends_on:
+      mysql:
+        condition: service_healthy
+  api:
+    <<: *app
+    ports:
+      - 127.0.0.1:8000:8000
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+  worker:
+    <<: *app
+    command: [python, -m, app.worker]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+volumes:
+  mysql-data:
+  photos:

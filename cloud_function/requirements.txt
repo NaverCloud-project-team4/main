@@ -1,0 +1,7 @@
+fastapi==0.161.1
+SQLAlchemy==2.0.55
+pydantic-settings==2.16.1
+httpx==0.28.1
+Pillow==12.3.0
+boto3==1.43.118
+PyMySQL==1.2.3
