@@ -32,12 +32,12 @@ function loadBrushFont() {
 }
 
 // children: the district sheet, rendered inside the map frame (fixed to the screen on phones).
-export default function WatercolorZoneMap({ zones, selected, onSelect, onEmptyClick, focusSpot, children }) {
+export default function WatercolorZoneMap({ zones, selected, onSelect, onSpotSelect, onEmptyClick, focusSpot, children }) {
   const canvasRef = useRef(null);
   const stageRef = useRef(null);
   const viewportRef = useRef(null);
-  const latest = useRef({ zones, selected, onSelect, onEmptyClick });
-  latest.current = { zones, selected, onSelect, onEmptyClick };
+  const latest = useRef({ zones, selected, onSelect, onSpotSelect, onEmptyClick });
+  latest.current = { zones, selected, onSelect, onSpotSelect, onEmptyClick };
   const [status, setStatus] = useState('loading');
   const [error, setError] = useState(null);
 
@@ -70,10 +70,13 @@ export default function WatercolorZoneMap({ zones, selected, onSelect, onEmptyCl
       stage = createWatercolorStage(maps, map, {
         boundaries, river: riverGeometry, paperUrl: MAP_ASSETS.paper, grainUrl: MAP_ASSETS.grain, treeAssets: MAP_ASSETS,
         onSelect: id => latest.current.onSelect(id),
+        onSpotSelect: spot => latest.current.onSpotSelect?.(spot),
         onEmptyClick: () => latest.current.onEmptyClick?.(),
       });
       stageRef.current = stage;
       stage.update(latest.current);
+      // Every forecast spot gets a pop-up-book tree from zoom 14; the map still works without them.
+      api('/api/forecast-spots').then(spots => { if (!disposed) stage.setSpots(spots); }).catch(() => {});
       viewport.fit();
       observer = new ResizeObserver(() => {
         if (disposed) return;

@@ -1,6 +1,7 @@
 import { INK, RIVER, PAPER_COLOR, paperOpacity, washFor, labelSize } from './watercolorPalette.js';
 import { insideCity } from './seoulViewport.js';
 import { createTreeLayer } from './treeLayer.js';
+import { createPopupLayer } from './popupLayer.js';
 
 // ---------- Pure SVG building (tested with node --test) ----------
 
@@ -108,7 +109,7 @@ const MOVE_EVENTS = ['bounds_changed', 'center_changed', 'zoom_changed', 'zoomin
  * The wash is rasterized once per zoom level; while dragging or zooming only CSS
  * transforms change, so the SVG filters never run per frame.
  */
-export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, grainUrl, treeAssets, onSelect, onEmptyClick, onGrowth }) {
+export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, grainUrl, treeAssets, onSelect, onSpotSelect, onEmptyClick, onGrowth }) {
   const root = document.createElement('div');
   root.className = 'wc-stage';
   root.setAttribute('aria-hidden', 'false');
@@ -132,6 +133,8 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
   world.append(canvas, selection);
   const trees = document.createElement('div');
   trees.className = 'wc-trees';
+  const popups = document.createElement('div');
+  popups.className = 'wc-popups';
   const labels = document.createElement('div');
   labels.className = 'wc-labels';
   // Ink ring + name for a spot picked in the district sheet.
@@ -139,10 +142,11 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
   spotMark.className = 'wc-spot-mark';
   spotMark.hidden = true;
   spotMark.setAttribute('role', 'status');
-  root.append(paper, world, trees, spotMark, labels);
+  root.append(paper, world, trees, popups, spotMark, labels);
 
   const districts = boundaries.features.map(f => ({ id: f.properties.zone_id, name: f.properties.name, geometry: f.geometry, hit: hitPolygons(f.geometry) }));
   const forest = createTreeLayer({ container: trees, districts, assets: treeAssets, onSelect });
+  const popupBook = createPopupLayer({ container: popups, assets: treeAssets, onSelect: spot => onSpotSelect?.(spot) });
   const compact = () => map.getElement().clientWidth < 500;
   const anchor = new maps.LatLng(37.5665, 126.978);
   const overlay = new maps.OverlayView();
@@ -175,10 +179,15 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
       const scale = (p2.x - p1.x) / state.raster.width;
       world.style.transform = `translate(${p1.x.toFixed(2)}px, ${p1.y.toFixed(2)}px) scale(${scale.toFixed(5)})`;
     }
-    forest.paint((lng, lat) => toScreen(new maps.LatLng(lat, lng), o));
+    const element = map.getElement();
+    const project = (lng, lat) => toScreen(new maps.LatLng(lat, lng), o);
+    forest.paint(project, element.clientWidth, element.clientHeight);
+    popupBook.paint(project, zoom, element.clientWidth, element.clientHeight, compact());
     if (state.spot) {
       const p = toScreen(new maps.LatLng(state.spot.latitude, state.spot.longitude), o);
       spotMark.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+      // The pop-up tree already carries the name; keep only the ink ring then.
+      spotMark.classList.toggle('wc-spot-mark--ring', popupBook.states().get(state.spot.id) === 'up');
     }
     for (const [id, el] of labelEls) {
       const zone = state.zones.get(id);
@@ -315,6 +324,8 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
       refreshRaster();
     }));
     listeners.push(maps.Event.addListener(map, 'click', event => {
+      // Labels, trees and pop-up trees handle their own clicks; NAVER reports them as map clicks too.
+      if (event.domEvent?.target?.closest?.('.wc-label, .wc-tree-body, .wc-pop-body')) return;
       const coord = event.coord;
       const id = coord && zoneAt(coord.x ?? coord.lng(), coord.y ?? coord.lat(), districts);
       if (id) onSelect(id);
@@ -350,6 +361,8 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
       }
       schedule();
     },
+    /** Forecast spots for the zoom-in pop-up-book trees. */
+    setSpots(spots) { popupBook.setSpots(spots); schedule(); },
     /** Move and zoom to a forecast spot (zoom 15) and mark it; null clears the mark. */
     focusSpot(spot) {
       state.spot = spot;
