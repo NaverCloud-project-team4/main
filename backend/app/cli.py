@@ -16,7 +16,6 @@ from .models import (
     Season,
     Zone,
     ForecastSpot,
-    Item,
     Report,
     ReportVerification,
     uid,
@@ -25,15 +24,9 @@ from .models import (
 from .security import hash_password
 from .storage import get_storage, normalize_image
 from .services import aggregate_zones, decide_report
+from .tree import seed_tree_items
 
 DATA = Path(__file__).resolve().parent / "data"
-
-ITEMS = [
-    ("ribbon", "가을 리본", 30, "decoration", "🎀"),
-    ("star", "반짝이는 별", 50, "decoration", "⭐"),
-    ("mushroom", "작은 버섯", 20, "ground", "🍄"),
-]
-
 
 def load_districts():
     return [
@@ -93,9 +86,7 @@ def initialize(demo=False):
         db.flush()
         seed_districts(db)
         seed_forecast_spots(db, str(year))
-        for iid, name, price, slot, icon in ITEMS:
-            if not db.get(Item, iid):
-                db.add(Item(id=iid, name=name, price=price, slot=slot, icon=icon))
+        seed_tree_items(db)  # 나만의 나무 아이템 카탈로그(id 기준 upsert)
         if demo:
             for email, nickname, role, password in [
                 ("demo@example.com", "단풍지기", "user", "DemoPass123!"),
