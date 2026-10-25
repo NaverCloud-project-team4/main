@@ -53,6 +53,104 @@
 .wc-legend .legend-trees { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .wc-legend .legend-trees img { width: 16px; height: 20px; object-fit: contain; }
 
+/* Spot picked in the sheet: ink ring with its name. */
+.wc-spot-mark {
+  position: absolute; left: 0; top: 0; width: 0; height: 0;
+  font-family: 'Nanum Brush Script', cursive; font-size: 22px; line-height: 1; color: #2f241b; white-space: nowrap;
+  pointer-events: none; z-index: 1;
+}
+.wc-spot-mark::before {
+  content: ''; position: absolute; left: -17px; top: -17px; width: 34px; height: 34px; border-radius: 50%;
+  border: 2px solid #3b2f25cc; box-shadow: 0 0 0 4px #f3ecdc99; animation: wc-ring 1.6s ease-out 2;
+}
+.wc-spot-mark { text-indent: 24px; text-shadow: 0 0 3px #f3ecdc, 0 0 6px #f3ecdc; }
+.wc-spot-mark[hidden] { display: none; }
+@keyframes wc-ring { from { transform: scale(.4); opacity: 0; } 40% { opacity: 1; } to { transform: scale(1); } }
+
+/* District bottom sheet (closed → preview → full). Desktop: inside the map frame; phones: fixed above the nav. */
+.wc-sheet {
+  --wc-peek: 182px;
+  --wc-drag: 0px;
+  /* Above NAVER's own controls (z-index 100) so the zoom buttons never float over the sheet. */
+  position: absolute; z-index: 120; left: 12px; right: 12px; bottom: 0; height: calc(100% - 64px);
+  word-break: keep-all;
+  display: flex; flex-direction: column;
+  background: #f6f0e2 url('/map-assets/paper-texture.webp') 0 0 / 512px 512px;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -1px 0 #5b4a3a40, 0 -10px 30px #3b2f2526;
+  color: #3b2f25;
+  transform: translateY(calc(100% + 16px));
+  transition: transform .32s cubic-bezier(.22, .9, .3, 1);
+  touch-action: none;
+}
+.wc-sheet[data-mode='preview'] { transform: translateY(calc(100% - var(--wc-peek) + var(--wc-drag))); }
+.wc-sheet[data-mode='full'] { transform: translateY(max(0px, var(--wc-drag))); }
+.wc-sheet[data-mode='closed'] { pointer-events: none; }
+.wc-sheet.dragging { transition: none; }
+.wc-sheet-head { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 6px 20px 12px; cursor: grab; user-select: none; }
+.wc-sheet.dragging .wc-sheet-head { cursor: grabbing; }
+.wc-sheet-handle { grid-column: 1 / -1; justify-self: center; display: grid; place-items: center; width: 64px; height: 22px; padding: 0; border: 0; background: transparent; }
+.wc-sheet-handle span { width: 44px; height: 4px; border-radius: 4px; background: #5b4a3a59; }
+.wc-sheet-title h3 { margin: 0 0 4px; font-family: 'Nanum Brush Script', cursive; font-size: 34px; font-weight: 400; letter-spacing: 0; line-height: 1; color: #2f241b; }
+.wc-sheet p { overflow-wrap: break-word; }
+.wc-sheet-title p { margin: 0; font-size: 13px; color: #5b4a3a; display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.wc-sheet-title small { font-size: 12px; color: #8a7663; }
+.wc-sheet-stats { margin-top: 6px !important; font-size: 12px !important; color: #7d6a58 !important; }
+.wc-sheet-actions { display: flex; align-items: flex-start; gap: 8px; }
+.wc-sheet-actions .wc-report { min-height: 40px; padding: 9px 14px; border-radius: 12px; font-size: 13px; background: #3b2f25; }
+.wc-sheet-actions .wc-report:hover { background: #2a2019; }
+.wc-sheet-close { width: 40px; height: 40px; border: 0; border-radius: 12px; background: #5b4a3a14; font-size: 22px; line-height: 1; color: #5b4a3a; }
+.wc-stage-badge { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: #3b2f25; }
+.wc-stage-badge i { width: 12px; height: 12px; border-radius: 50%; }
+
+.wc-sheet-tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; margin: 0 20px; border-bottom: 1px solid #5b4a3a4d; }
+.wc-sheet-tabs button { padding: 11px 0 10px; border: 0; background: transparent; font-family: 'Nanum Brush Script', cursive; font-size: 21px; color: #8a7663; }
+.wc-sheet-tabs button.active { color: #2f241b; }
+.wc-tab-ink { position: absolute; left: 0; bottom: -2px; width: 50%; height: 3px; border-radius: 3px; background: #3b2f25; transition: transform .2s ease; }
+.wc-tab-ink[data-tab='posts'] { transform: translateX(100%); }
+.wc-sheet-body { flex: 1; min-height: 0; overflow: hidden; }
+.wc-sheet-panes { display: flex; height: 100%; transition: transform .2s ease; }
+.wc-sheet-panes[data-tab='posts'] { transform: translateX(-100%); }
+.wc-sheet-pane { flex: 0 0 100%; height: 100%; overflow-y: auto; overscroll-behavior: contain; padding: 14px 20px 28px; touch-action: pan-y; }
+.wc-sheet[data-mode='preview'] .wc-sheet-pane { overflow: hidden; }
+.wc-sheet-empty { margin: 18px 0; color: #7d6a58; font-size: 13px; line-height: 1.7; }
+.wc-sheet-count { margin: 0 0 12px; font-size: 12px; color: #7d6a58; }
+
+.wc-spot-list { list-style: none; margin: 0; padding: 0; }
+.wc-spot-list li + li { border-top: 1px dashed #5b4a3a40; }
+.wc-spot {
+  position: relative; display: grid; grid-template-columns: 1fr; gap: 4px; width: 100%;
+  padding: 14px 44px 14px 2px; border: 0; background: transparent; text-align: left; color: inherit;
+}
+.wc-spot:hover { background: #5b4a3a0d; }
+.wc-spot-name { font-family: 'Nanum Brush Script', cursive; font-size: 24px; line-height: 1.1; color: #2f241b; }
+.wc-spot-meta { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.wc-spot-kind { padding: 2px 8px; border: 1px solid #5b4a3a59; border-radius: 999px; color: #5b4a3a; }
+.wc-spot-peak { font-size: 13px; color: #5b4a3a; }
+.wc-spot-source { font-size: 11px; color: #8a7663; }
+.wc-spot-go { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: #5b4a3a; }
+.wc-post-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.wc-post-grid .report-card { background: #fffdf7; box-shadow: 0 1px 0 #5b4a3a26; }
+.wc-more { width: 100%; margin-top: 16px; background: #5b4a3a14; color: #3b2f25; }
+
+@media (max-width: 900px) {
+  .wc-sheet {
+    /* z-index stays 120: it only competes inside the isolated .zone-map, so the page nav (15) still wins. */
+    position: fixed; left: 0; right: 0;
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    height: min(78vh, 680px);
+  }
+  .wc-post-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 650px) {
+  .wc-sheet { --wc-peek: 172px; }
+  .wc-sheet-head { padding: 4px 16px 10px; }
+  .wc-sheet-title h3 { font-size: 30px; }
+  .wc-sheet-tabs { margin: 0 16px; }
+  .wc-sheet-pane { padding: 12px 16px 24px; }
+  .wc-sheet-actions .wc-report { padding: 9px 11px; }
+}
+
 /* Controls sit above the stage (z-index 1) like NAVER's own controls. */
 .wc-toolbar { z-index: 2; }
 .wc-toolbar>span, .wc-toolbar>button {
@@ -74,4 +172,6 @@
   .wc-tree--enter .wc-tree-body { animation: wc-fade-in .25s ease var(--wc-delay, 0ms) both; }
   .wc-tree--leave .wc-tree-body { animation: wc-fade-in .25s ease reverse forwards; }
   .wc-leaf--enter img { animation: none; }
+  .wc-sheet, .wc-sheet-panes, .wc-tab-ink { transition: opacity .2s ease; }
+  .wc-spot-mark::before { animation: none; }
 }

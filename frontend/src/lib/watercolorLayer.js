@@ -134,14 +134,19 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
   trees.className = 'wc-trees';
   const labels = document.createElement('div');
   labels.className = 'wc-labels';
-  root.append(paper, world, trees, labels);
+  // Ink ring + name for a spot picked in the district sheet.
+  const spotMark = document.createElement('div');
+  spotMark.className = 'wc-spot-mark';
+  spotMark.hidden = true;
+  spotMark.setAttribute('role', 'status');
+  root.append(paper, world, trees, spotMark, labels);
 
   const districts = boundaries.features.map(f => ({ id: f.properties.zone_id, name: f.properties.name, geometry: f.geometry, hit: hitPolygons(f.geometry) }));
   const forest = createTreeLayer({ container: trees, districts, assets: treeAssets, onSelect });
   const compact = () => map.getElement().clientWidth < 500;
   const anchor = new maps.LatLng(37.5665, 126.978);
   const overlay = new maps.OverlayView();
-  const state = { zones: new Map(), selected: null, raster: null, token: 0, stageKey: '', movingUntil: 0, frame: null, labelZoom: null, destroyed: false };
+  const state = { zones: new Map(), selected: null, spot: null, raster: null, token: 0, stageKey: '', movingUntil: 0, frame: null, labelZoom: null, destroyed: false };
   const labelEls = new Map();
   let listeners = [];
   let highTimer = null;
@@ -171,6 +176,10 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
       world.style.transform = `translate(${p1.x.toFixed(2)}px, ${p1.y.toFixed(2)}px) scale(${scale.toFixed(5)})`;
     }
     forest.paint((lng, lat) => toScreen(new maps.LatLng(lat, lng), o));
+    if (state.spot) {
+      const p = toScreen(new maps.LatLng(state.spot.latitude, state.spot.longitude), o);
+      spotMark.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
+    }
     for (const [id, el] of labelEls) {
       const zone = state.zones.get(id);
       if (!zone) continue;
@@ -340,6 +349,15 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
         drawSelection();
       }
       schedule();
+    },
+    /** Move and zoom to a forecast spot (zoom 15) and mark it; null clears the mark. */
+    focusSpot(spot) {
+      state.spot = spot;
+      spotMark.hidden = !spot;
+      if (!spot) return;
+      spotMark.textContent = spot.name;
+      map.morph(new maps.LatLng(spot.latitude, spot.longitude), Math.max(15, Math.floor(map.getZoom())));
+      schedule(1500);
     },
     resize() { renderLabels(); forest.resize(map.getZoom(), compact()); refreshRaster(true); schedule(); },
     destroy() {
