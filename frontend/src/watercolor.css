@@ -30,6 +30,29 @@
 .wc-label.selected { color: #000; text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; text-decoration-color: #3b2f2566; }
 .wc-label:focus-visible { outline: 2px solid var(--wc-ink-soft); outline-offset: 2px; border-radius: 4px; }
 
+/* Interest trees: .wc-tree is positioned per frame; .wc-tree-body carries size and growth. */
+.wc-trees { position: absolute; inset: 0; }
+.wc-tree, .wc-leaf { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.wc-tree-body {
+  position: absolute; left: 0; top: 0;
+  transform-origin: 50% 94%;
+  pointer-events: auto; cursor: pointer;
+  transition: width .6s cubic-bezier(.34, 1.56, .64, 1), height .6s cubic-bezier(.34, 1.56, .64, 1),
+    margin .6s cubic-bezier(.34, 1.56, .64, 1);
+}
+.wc-tree-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: saturate(.92) drop-shadow(0 1px 1px #5b4a3a33); -webkit-user-drag: none; }
+.wc-tree-shadow { position: absolute; left: 5%; top: 85%; width: 90%; opacity: .8; }
+.wc-trees--instant .wc-tree-body { transition: none; }
+.wc-tree--enter .wc-tree-body { animation: wc-tree-grow .7s cubic-bezier(.34, 1.56, .64, 1) var(--wc-delay, 0ms) both; }
+.wc-tree--leave .wc-tree-body { animation: wc-tree-fade .35s ease forwards; pointer-events: none; }
+.wc-leaf img { position: absolute; left: 0; top: 0; opacity: .9; }
+.wc-leaf--enter img { animation: wc-fade-in .6s ease .4s both; }
+@keyframes wc-tree-grow { from { transform: scale(0); opacity: 0; } 25% { opacity: 1; } to { transform: scale(1); opacity: 1; } }
+@keyframes wc-tree-fade { to { transform: scale(.6); opacity: 0; } }
+@keyframes wc-fade-in { from { opacity: 0; } }
+.wc-legend .legend-trees { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.wc-legend .legend-trees img { width: 16px; height: 20px; object-fit: contain; }
+
 /* Controls sit above the stage (z-index 1) like NAVER's own controls. */
 .wc-toolbar { z-index: 2; }
 .wc-toolbar>span, .wc-toolbar>button {
@@ -47,5 +70,8 @@
   .wc-toolbar>button { font-size: 14px; padding: 7px 11px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .wc-paper, .wc-label { transition: none; }
+  .wc-paper, .wc-label, .wc-tree-body { transition: none; }
+  .wc-tree--enter .wc-tree-body { animation: wc-fade-in .25s ease var(--wc-delay, 0ms) both; }
+  .wc-tree--leave .wc-tree-body { animation: wc-fade-in .25s ease reverse forwards; }
+  .wc-leaf--enter img { animation: none; }
 }

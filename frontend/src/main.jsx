@@ -10,6 +10,8 @@ import './style.css';
 // classic (default) keeps the original map as the demo fallback; watercolor loads lazily.
 const MAP_THEME = import.meta.env.VITE_MAP_THEME === 'watercolor' ? 'watercolor' : 'classic';
 const WatercolorZoneMap = lazy(() => import('./components/WatercolorZoneMap'));
+// Map refresh interval; lower it (e.g. 15000) for live demos. Never below 5 s.
+const ZONE_POLL_MS = Math.max(5000, Number(import.meta.env.VITE_ZONE_POLL_MS) || 60000);
 const speciesNames ={ MAPLE: '단풍', GINKGO: '은행', MIXED: '혼합' };
 const statuses = { PENDING_UPLOAD: '사진 저장 중', PENDING_AI: '사진 확인 중', APPROVED: '승인됨', REVIEW: '운영자 검토', REJECTED: '반려됨', UPLOAD_FAILED: '업로드 실패' };
 const pending = status => ['PENDING_UPLOAD', 'PENDING_AI'].includes(status);
@@ -66,7 +68,7 @@ function App() {
     if (tab !== 'map') return;
     const interval = setInterval(() => {
       api('/api/zones').then(setZones).catch(e => setError(e.message));
-    }, 60000);
+    }, ZONE_POLL_MS);
     return () => clearInterval(interval);
   }, [tab]);
   // Resume observing a persisted pending report after a browser refresh.

@@ -34,7 +34,7 @@ from .schemas import LoginIn, RegisterIn, UserOut, AuthOut, ReportOut, ReportPag
 from .security import current_user, optional_user, admin_user, hash_password, check_password, make_token
 from .storage import get_storage, normalize_image
 from .geography import geometry_covers, seoul_boundaries, canonical_zone_id
-from .services import set_like, decide_report, resolve_zone, zone_summaries, map_document
+from .services import set_like, decide_report, resolve_zone, zone_summaries, map_document, forecast_spot_list
 from .aggregate import run_aggregation
 from .jobs import enqueue
 
@@ -281,6 +281,12 @@ def zones(
 def map_data(db: DB):
     """CDN의 지도 JSON(map/zones.json)과 같은 내용. 지도 JSON을 못 읽을 때의 대체 경로."""
     return map_document(db)
+
+
+@app.get("/api/forecast-spots", tags=["지도"])
+def forecast_spots(db: DB, zone_id: str | None = Query(None, max_length=40)):
+    """현재 시즌의 단풍 명소(예측 지점). zone_id로 구를 거른다. 읽기 전용."""
+    return forecast_spot_list(db, zone_id)
 
 
 @app.post("/api/internal/aggregate", tags=["운영"])

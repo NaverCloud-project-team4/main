@@ -11,6 +11,11 @@ export const MAP_ASSETS = Object.freeze({
   paper: '/map-assets/paper-texture.webp',
   grain: '/map-assets/pigment-grain.png',
   river: '/map-assets/han-river.geojson',
+  maple: '/map-assets/tree-maple.png',
+  ginkgo: '/map-assets/tree-ginkgo.png',
+  shadow: '/map-assets/tree-shadow.png',
+  mapleLeaves: ['/map-assets/leaf-maple-1.png', '/map-assets/leaf-maple-2.png', '/map-assets/leaf-maple-3.png'],
+  ginkgoLeaves: ['/map-assets/leaf-ginkgo-1.png', '/map-assets/leaf-ginkgo-2.png'],
 });
 const STYLE_ID = (import.meta.env.VITE_NAVER_MAP_STYLE_ID_WATERCOLOR || '').trim() || NAVER_MAP_STYLE_ID;
 const FONT_ID = 'kauroong-brush-font';
@@ -64,7 +69,7 @@ export default function WatercolorZoneMap({ zones, selected, onSelect, onEmptyCl
       viewport = installSeoulViewport(maps, map, boundaries);
       viewportRef.current = viewport;
       stage = createWatercolorStage(maps, map, {
-        boundaries, river: riverGeometry, paperUrl: MAP_ASSETS.paper, grainUrl: MAP_ASSETS.grain,
+        boundaries, river: riverGeometry, paperUrl: MAP_ASSETS.paper, grainUrl: MAP_ASSETS.grain, treeAssets: MAP_ASSETS,
         onSelect: id => latest.current.onSelect(id),
         onEmptyClick: () => latest.current.onEmptyClick?.(),
       });
@@ -107,6 +112,7 @@ export default function WatercolorZoneMap({ zones, selected, onSelect, onEmptyCl
     <div className="map-interest-legend wc-legend" role="group" aria-label="단풍 단계 색상 범례">
       <span className="legend-title">단풍 단계</span>
       {STAGE_ORDER.map(stage => <span key={stage} className="legend-step" title={`${STAGE_WASH[stage].label} · ${STAGE_WASH[stage].colorName}`}><i style={{ background: `radial-gradient(circle, ${STAGE_WASH[stage].inner} 35%, ${STAGE_WASH[stage].edge})` }} aria-hidden="true"/>{STAGE_WASH[stage].label}<span className="sr-only"> {STAGE_WASH[stage].colorName}</span></span>)}
+      <span className="legend-trees" title="관심도가 오를수록 나무가 커지고 숲이 돼요"><img src={MAP_ASSETS.maple} alt="" aria-hidden="true"/>관심도: 나무 1그루 → 숲</span>
       <span className="legend-selection">먹선 테두리: 선택한 구</span>
     </div>
     <p className="map-attribution">경계: 통계청 SGIS · <a href="https://github.com/vuski/admdongkor" target="_blank" rel="noreferrer">vuski/admdongkor</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a> · 서울 자치구로 병합 · 한강: © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>, ODbL</p>

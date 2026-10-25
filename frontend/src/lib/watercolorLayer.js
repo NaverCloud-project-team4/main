@@ -1,5 +1,6 @@
 import { INK, RIVER, PAPER_COLOR, paperOpacity, washFor, labelSize } from './watercolorPalette.js';
 import { insideCity } from './seoulViewport.js';
+import { createTreeLayer } from './treeLayer.js';
 
 // ---------- Pure SVG building (tested with node --test) ----------
 
@@ -107,7 +108,7 @@ const MOVE_EVENTS = ['bounds_changed', 'center_changed', 'zoom_changed', 'zoomin
  * The wash is rasterized once per zoom level; while dragging or zooming only CSS
  * transforms change, so the SVG filters never run per frame.
  */
-export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, grainUrl, onSelect, onEmptyClick }) {
+export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, grainUrl, treeAssets, onSelect, onEmptyClick, onGrowth }) {
   const root = document.createElement('div');
   root.className = 'wc-stage';
   root.setAttribute('aria-hidden', 'false');
@@ -129,11 +130,15 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
   selectionLine.setAttribute('stroke-linejoin', 'round');
   selection.append(selectionFill, selectionLine);
   world.append(canvas, selection);
+  const trees = document.createElement('div');
+  trees.className = 'wc-trees';
   const labels = document.createElement('div');
   labels.className = 'wc-labels';
-  root.append(paper, world, labels);
+  root.append(paper, world, trees, labels);
 
   const districts = boundaries.features.map(f => ({ id: f.properties.zone_id, name: f.properties.name, geometry: f.geometry, hit: hitPolygons(f.geometry) }));
+  const forest = createTreeLayer({ container: trees, districts, assets: treeAssets, onSelect });
+  const compact = () => map.getElement().clientWidth < 500;
   const anchor = new maps.LatLng(37.5665, 126.978);
   const overlay = new maps.OverlayView();
   const state = { zones: new Map(), selected: null, raster: null, token: 0, stageKey: '', movingUntil: 0, frame: null, labelZoom: null, destroyed: false };
@@ -165,11 +170,14 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
       const scale = (p2.x - p1.x) / state.raster.width;
       world.style.transform = `translate(${p1.x.toFixed(2)}px, ${p1.y.toFixed(2)}px) scale(${scale.toFixed(5)})`;
     }
+    forest.paint((lng, lat) => toScreen(new maps.LatLng(lat, lng), o));
     for (const [id, el] of labelEls) {
       const zone = state.zones.get(id);
       if (!zone) continue;
       const p = toScreen(new maps.LatLng(zone.latitude, zone.longitude), o);
-      el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, -50%)`;
+      // With a forest, the name sits just below the central tree's roots.
+      const lift = forest.hasTrees(id) ? '2px' : '-50%';
+      el.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px) translate(-50%, ${lift})`;
     }
     if (performance.now() < state.movingUntil) state.frame = requestAnimationFrame(paint);
   }
@@ -265,7 +273,7 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
   }
 
   function renderLabels() {
-    const size = labelSize(map.getZoom(), map.getElement().clientWidth < 500);
+    const size = labelSize(map.getZoom(), compact());
     for (const district of districts) {
       let el = labelEls.get(district.id);
       if (!el) {
@@ -294,6 +302,7 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
     listeners.push(maps.Event.addListener(map, 'idle', () => {
       schedule(120);
       if (state.labelZoom !== map.getZoom()) renderLabels();
+      forest.resize(map.getZoom(), compact());
       refreshRaster();
     }));
     listeners.push(maps.Event.addListener(map, 'click', event => {
@@ -322,6 +331,8 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
       state.selected = selected;
       const stageKey = zones.map(z => `${z.id}:${z.stage}`).sort().join('|');
       renderLabels();
+      const growth = forest.update(state.zones, map.getZoom(), compact());
+      if (growth.added.length || growth.grown.length || growth.removed.length) onGrowth?.(growth);
       if (stageKey !== state.stageKey) {
         state.stageKey = stageKey;
         if (overlay.getMap()) refreshRaster(true);
@@ -330,7 +341,7 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
       }
       schedule();
     },
-    resize() { renderLabels(); refreshRaster(true); schedule(); },
+    resize() { renderLabels(); forest.resize(map.getZoom(), compact()); refreshRaster(true); schedule(); },
     destroy() {
       state.destroyed = true;
       clearTimeout(highTimer);

@@ -215,3 +215,51 @@ def test_aggregation_lock_skips_a_second_run(env):
     with aggregate_module.aggregate_lock() as first:
         assert first is True
         assert env.client.post("/api/internal/aggregate", headers={"X-Aggregate-Key": KEY}).json() == {"skipped": True}
+
+
+def add_approved_report(db, user_id, zone_id, species, n):
+    db.add(
+        Report(
+            user_id=user_id,
+            zone_id=zone_id,
+            season_id="2026",
+            status="APPROVED",
+            stage="PEAK",
+            species=species,
+            latitude=0.0,
+            longitude=0.0,
+            object_key=f"reports/{uid()}.jpg",
+            photo_hash="h",
+            request_key=f"s{n}",
+            request_fingerprint="f",
+        )
+    )
+
+
+def test_zones_report_dominant_species_ignoring_mixed(env):
+    _, user_id = make_user(env.Session, "species")
+    with env.Session.begin() as db:
+        for n, (zone_id, species) in enumerate(
+            [("jung", "GINKGO"), ("jung", "GINKGO"), ("jung", "MAPLE"), ("jung", "MIXED"), ("jung", "MIXED"),
+             ("jongno", "GINKGO"), ("jongno", "MAPLE"), ("gangnam", "MIXED")]
+        ):
+            add_approved_report(db, user_id, zone_id, species, n)
+        add_pending_report(db, user_id, "mapo", "PEAK", 99)  # 승인 전 GINKGO는 세지 않는다
+    zones = {z["id"]: z for z in env.client.get("/api/zones").json()}
+    assert zones["jung"]["dominant_species"] == "GINKGO"
+    assert zones["jongno"]["dominant_species"] == "MAPLE"  # 동률
+    assert zones["gangnam"]["dominant_species"] == "MAPLE"  # MIXED만 있음
+    assert zones["mapo"]["dominant_species"] == "MAPLE"
+    assert all(z["dominant_species"] in {"MAPLE", "GINKGO"} for z in zones.values())
+
+
+def test_forecast_spots_filter_by_district_with_stage(env):
+    everything = env.client.get("/api/forecast-spots").json()
+    assert len(everything) == 25
+    jung = env.client.get("/api/forecast-spots", params={"zone_id": "jung"}).json()
+    assert jung and all(spot["zone_id"] == "jung" for spot in jung)
+    spot = next(s for s in jung if s["name"] == "정동길")
+    assert spot["kind"] == "GINKGO" and spot["peak_date"] == "2026-10-30"
+    assert spot["stage"] == "PEAK"  # 10/27 기준, 절정 3일 전
+    assert {"latitude", "longitude", "source"} <= spot.keys()
+    assert env.client.get("/api/forecast-spots", params={"zone_id": "nowhere"}).json() == []
