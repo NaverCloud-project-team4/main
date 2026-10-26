@@ -53,6 +53,9 @@ class LocalStorage:
     def exists(self, key: str) -> bool:
         return self.path(key).is_file()
 
+    def delete(self, key: str):
+        self.path(key).unlink(missing_ok=True)
+
 
 class S3Storage:
     def __init__(self):
@@ -96,6 +99,9 @@ class S3Storage:
             if exc.response.get("ResponseMetadata", {}).get("HTTPStatusCode") == 404:
                 return False
             raise
+
+    def delete(self, key: str):
+        self.client.delete_object(Bucket=self.bucket, Key=key)  # no error when the key is already gone
 
     def signed_url(self, key: str) -> str:
         return self.client.generate_presigned_url(

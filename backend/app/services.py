@@ -1,4 +1,5 @@
 from collections import defaultdict
+import time
 from datetime import date, datetime, timedelta
 from math import asin, cos, radians, sin, sqrt
 from fastapi import HTTPException
@@ -7,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from .geography import geometry_covers
 from .config import get_settings
-from .foliage import STAGES, interest_level, interest_score, kst_today, resolve_zone as resolve_foliage  # noqa: F401
+from .foliage import STAGES, interest_level, interest_score, kst_today, stage_from_peak, resolve_zone as resolve_foliage  # noqa: F401
 from .models import (
     ForecastSpot,
     Report,
@@ -22,6 +23,7 @@ from .models import (
 )
 
 PENDING = ("PENDING_UPLOAD", "PENDING_AI")
+SPOT_RADIUS_M = 500  # 명소 "주변" 제보로 세는 거리
 SPECIES = ("MAPLE", "GINKGO", "MIXED")
 
 
@@ -152,8 +154,76 @@ def aggregate_zones(db: Session, now_utc: datetime | None = None, forecast_today
     }
 
 
-def zone_summaries(db: Session, bounds=None, legacy_radius=False) -> list[dict]:
+def dominant_species(db: Session, since: datetime) -> dict[str, str]:
+    """구별 최근 승인 제보의 우세 수종. MIXED는 세지 않고, 동률이거나 제보가 없으면 MAPLE."""
+    counts = defaultdict(lambda: {"MAPLE": 0, "GINKGO": 0})
+    for zone_id, species, n in db.execute(
+        select(Report.zone_id, Report.species, func.count(Report.id))
+        .where(Report.status == "APPROVED", Report.created_at >= since, Report.species.in_(("MAPLE", "GINKGO")))
+        .group_by(Report.zone_id, Report.species)
+    ):
+        counts[zone_id][species] = n
+    return {zone_id: "GINKGO" if c["GINKGO"] > c["MAPLE"] else "MAPLE" for zone_id, c in counts.items()}
+
+
+# 우세 수종은 1분 주기 집계 사이에 거의 안 바뀐다. 제보가 많으면 계산이 무거워서
+# API 프로세스 메모리에 species_cache_seconds(기본 60초) 동안 둔다. 지도 JSON은 항상 새로 계산한다.
+_species_cache: dict = {"at": None, "value": None}
+
+
+def clear_species_cache():
+    _species_cache.update(at=None, value=None)
+
+
+def cached_dominant_species(db: Session, fresh: bool = False) -> dict[str, str]:
+    s = get_settings()
+    t = time.monotonic()
+    if not fresh and s.species_cache_seconds > 0 and _species_cache["at"] is not None and t - _species_cache["at"] < s.species_cache_seconds:
+        return _species_cache["value"]
+    value = dominant_species(db, now() - timedelta(days=s.activity_days))
+    _species_cache.update(at=t, value=value)
+    return value
+
+
+def forecast_spot_list(db: Session, zone_id: str | None = None) -> list[dict]:
+    """현재 시즌의 예측 명소. 단계는 예측 기준일과 지점별 예상 절정일로 계산한다."""
+    t = now()
+    today = forecast_date(t)
+    season = current_season(db, t)
+    q = select(ForecastSpot).order_by(ForecastSpot.peak_date, ForecastSpot.name)
+    if season is not None:
+        q = q.where(ForecastSpot.season_id == season.id)
+    if zone_id:
+        q = q.where(ForecastSpot.zone_id == zone_id)
+    spots = list(db.scalars(q))
+    # 구 하나를 볼 때만: 명소 반경 안 최근 승인 제보 수(시트의 "요즘 인기"). 전체 목록은 지도 팝업용이라 생략.
+    nearby = None
+    if zone_id:
+        since = t - timedelta(days=get_settings().activity_days)
+        points = db.execute(
+            select(Report.latitude, Report.longitude).where(Report.zone_id == zone_id, Report.status == "APPROVED", Report.created_at >= since)
+        ).all()
+        nearby = {spot.id: sum(distance_m(spot.latitude, spot.longitude, lat, lng) <= SPOT_RADIUS_M for lat, lng in points) for spot in spots}
+    return [
+        {
+            "id": spot.id,
+            "zone_id": spot.zone_id,
+            "name": spot.name,
+            "kind": spot.kind,
+            "latitude": spot.latitude,
+            "longitude": spot.longitude,
+            "peak_date": spot.peak_date.isoformat(),
+            "stage": stage_from_peak(today, spot.peak_date),
+            "source": spot.source,
+            "recent_reports": nearby[spot.id] if nearby is not None else None,
+        }
+        for spot in spots
+    ]
+
+
+def zone_summaries(db: Session, bounds=None, legacy_radius=False, fresh_species=False) -> list[dict]:
     """구역 목록(단계, 출처, 관심도). /api/zones 응답과 지도 JSON이 같은 필드를 쓴다."""
+    species = cached_dominant_species(db, fresh=fresh_species)
     q = select(Zone, ZoneStatus, ZoneActivity).join(ZoneStatus).join(ZoneActivity).where(Zone.active.is_(True))
     if bounds is not None:
         min_lat, max_lat, min_lng, max_lng = bounds
@@ -175,6 +245,7 @@ def zone_summaries(db: Session, bounds=None, legacy_radius=False) -> list[dict]:
             "like_count": a.like_count,
             "interest_score": a.score,
             "tree_level": a.tree_level,
+            "dominant_species": species.get(z.id, "MAPLE"),
             "updated_at": iso(a.updated_at),
         }
         if legacy_radius:
@@ -190,7 +261,7 @@ def map_document(db: Session) -> dict:
         "generated_at": iso(t),
         "season": season.id if season else None,
         "forecast_date": forecast_date(t).isoformat(),
-        "zones": zone_summaries(db),
+        "zones": zone_summaries(db, fresh_species=True),  # 1분마다 한 번: 캐시를 새 값으로 갱신
     }
 
 

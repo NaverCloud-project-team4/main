@@ -10,6 +10,7 @@
 | POST | /api/auth/login | 없음 | JWT 발급 |
 | GET | /api/me | 사용자 | 내 잔액·역할·프로필 |
 | GET | /api/zones | 없음 | 활성 서울 25개 자치구·단풍 상태·관심 나무 |
+| GET | /api/forecast-spots | 없음 | 현재 시즌 단풍 명소(예측 지점). `zone_id`로 구 필터, 지점별 예측 단계 포함 |
 | GET | /api/zones/boundaries | 없음 | 자치구 GeoJSON 경계·서울 외곽·bbox·기준일·출처 |
 | POST | /api/zones/resolve | 없음 | 현재 좌표에 해당하는 제보 구역 자동 조회 |
 | POST | /api/reports | 사용자 | multipart 사진 제보, 202 응답 |
@@ -20,9 +21,11 @@
 | PUT / DELETE | /api/reports/{id}/like | 사용자 | 좋아요 추가·취소, 반복 호출해도 동일 결과 |
 | GET | /api/me/reports | 사용자 | 내 제보와 검증 상태 |
 | GET | /api/me/points | 사용자 | 잔액과 최근 포인트 내역 50개 |
-| GET | /api/items | 선택 | 아이템과 보유·장착 상태 |
-| PUT | /api/me/items/{item_id} | 사용자 | 보유하지 않은 아이템 한 번 구매 |
-| PUT | /api/me/tree/equipment/{slot} | 사용자 | 보유 아이템 장착 |
+| GET | /api/items | 선택 | 아이템과 보유·장착 상태, 그룹·어울리는 나무 종류(tags)·배경 효과(effect) |
+| PUT | /api/me/items/{item_id} | 사용자 | 보유하지 않은 아이템 한 번 구매 (가격 0은 기록 없이 보유) |
+| PUT | /api/me/tree/equipment/{slot} | 사용자 | 보유 아이템 한 슬롯 장착 (해금된 슬롯만) |
+| GET | /api/me/tree | 사용자 | 나무 종류, 성장 단계(누적 적립 기준), 슬롯별 해금·장착·표시 여부 |
+| PUT | /api/me/tree | 사용자 | 종류와 여러 슬롯을 한 번에 저장 (전부 성공 또는 전부 취소) |
 | GET | /api/admin/reports | 운영자 | 검토 대기 제보 |
 | POST | /api/admin/reports/{id}/decision | 운영자 | 검토 제보 승인·반려 |
 | GET | /health/live / /health/ready | 없음 | 프로세스·DB 준비 상태 |
@@ -106,6 +109,17 @@ level = 0 (score 0), 1 (1~14), 2 (15~39), 3 (40 이상)
 ## main 통합 추가 사항 (2026-10-23)
 
 - `/api/zones`, `/api/map`은 활성 서울 25개 구만 반환합니다. 구역 ID는 main의 영문 ID이며 `district_code`로 법정 자치구 코드를 제공합니다. 이전 `seoul-코드`는 제보 생성·피드 구역 필터에서 호환합니다.
-- 구 요약에 `source`(`REPORT`/`FORECAST`/`NONE`), `peak_date`를 추가했습니다. `/api/map`은 `generated_at`, `season`, `forecast_date`, `zones`를 반환합니다.
+- 구 요약에 `source`(`REPORT`/`FORECAST`/`NONE`), `peak_date`를 추가했습니다.
+- 구 요약에 `dominant_species`(`MAPLE`/`GINKGO`)를 추가했습니다. 최근 `activity_days`일 승인 제보의 우세 수종이며 `MIXED`는 세지 않고, 동률이거나 제보가 없으면 `MAPLE`입니다.
+- `GET /api/forecast-spots?zone_id=`는 `id`, `zone_id`, `name`, `kind`(`MOUNTAIN`/`GINKGO`), `latitude`, `longitude`, `peak_date`, `stage`, `source`를 예상 절정일 순으로 반환합니다. `stage`는 예측 기준일과 지점의 `peak_date`로 계산합니다(구 단계와 같은 규칙). `/api/map`은 `generated_at`, `season`, `forecast_date`, `zones`를 반환합니다.
 - `POST /api/internal/aggregate`: `X-Aggregate-Key` 헤더 필요. 키 미설정 503, 불일치 403, 집계/업로드 실패 502. 집계는 DB 반영 후 지도 JSON을 발행하며 동시 실행은 건너뜁니다.
 - 지도 단계/관심도는 승인·좋아요 요청마다 갱신하지 않고 1분 집계로 반영합니다. 좌표 자동 구 판별, 촬영/업로드·현재/수동 위치 권한, 제보 입력 방식 저장은 유지합니다.
+
+## 나만의 나무
+
+- 성장 단계는 저장하지 않고 `point_ledger`의 + 항목 합(누적 적립)으로 계산합니다. 아이템을 사서 잔액이 줄어도 단계는 내려가지 않습니다. 기준값은 `backend/app/tree_catalog.py`의 `GROWTH_STAGES` 한 곳에 있습니다(새싹 0 / 묘목 60 / 어린나무 200 / 큰나무 500).
+- 슬롯: `species`(항상), `background`·`ground`(새싹), `branch-1`·`branch-2`(묘목), `branch-3`·`branch-4`(어린나무), `topper`(큰나무). 아이템의 `slot`(=`group`)이 `branch`면 `branch-1`~`branch-4` 어디에나, 한 번 사면 여러 가지에 달 수 있습니다.
+- 나무 종류는 `species` 그룹 아이템(`tree-maple`, `tree-ginkgo`, `tree-cherry`, `tree-xmas`)을 `species` 슬롯에 장착한 것으로 표현합니다. 단풍·은행은 무료, 벚꽃 120P·크리스마스 180P에 해금합니다.
+- 종류를 바꿔도 장착은 유지됩니다. 그 종류에 어울리지 않는(`tags`에 없는) 장착은 `visible: false`로 숨기기만 합니다. 저장 시 새로 다는 아이템만 종류를 검사합니다.
+- `PUT /api/me/tree` 본문: `{"species": "cherry", "slots": {"branch-1": "fairy-lights", "ground": null}}`. 보낸 슬롯만 바뀌고 `null`은 해제입니다. 잠긴 슬롯·그룹 불일치·모르는 슬롯은 422, 미보유는 403이며 그때는 아무것도 바뀌지 않습니다.
+- 아이템 카탈로그(이름·가격·그룹·태그·효과)는 `tree_catalog.py`에 있고 `app.cli init`이 id 기준으로 맞춥니다(여러 번 실행해도 중복 없음). 예전 `decoration` 장착은 비어 있는 `topper`로 옮깁니다.

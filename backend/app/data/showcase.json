@@ -1,0 +1,18 @@
+{
+ "_doc": "시연 데이터(seed-showcase). popularSpots는 forecast_spots의 이름과 목표 관심도(2~3). 같은 구의 명소는 하나만. levelOneZones·loadTestZones는 관심도 1로 시작. 나머지 구는 예측 데이터만(관심도 0). 사진은 photosDir/ginkgo, photosDir/maple.",
+ "accountPrefix": "showcase-",
+ "rehearsalPrefix": "rehearsal-",
+ "emailDomain": "demo.kauroong.local",
+ "photosDir": "assets/showcase",
+ "spreadMeters": 300,
+ "hoursAgo": [1, 60],
+ "popularSpots": [
+  { "spot": "정동길", "level": 3 },
+  { "spot": "서울숲 은행나무숲", "level": 3 },
+  { "spot": "삼청동길", "level": 2 },
+  { "spot": "현충원 은행나무길", "level": 2 },
+  { "spot": "매봉산자락길(마포)", "level": 2 }
+ ],
+ "levelOneZones": ["gangnam", "songpa", "seodaemun", "eunpyeong", "nowon"],
+ "loadTestZones": ["gwanak"]
+}

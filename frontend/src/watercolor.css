@@ -1,0 +1,224 @@
+/* Watercolor map theme. Loaded unless VITE_MAP_THEME=classic; every rule is scoped to .wc-*. */
+.wc-map {
+  --wc-paper: #f3ecdc;
+  --wc-ink: #3b2f25;
+  --wc-ink-soft: #5b4a3a;
+  --wc-brush: 'Nanum Brush Script', 'East Sea Dokdo', 'Yeon Sung', cursive;
+  background: var(--wc-paper);
+}
+.wc-stage { position: absolute; inset: 0; z-index: 1; overflow: hidden; pointer-events: none; }
+.wc-paper {
+  position: absolute; inset: 0;
+  background-color: var(--wc-paper);
+  background-size: 512px 512px;
+  transition: opacity .3s ease;
+}
+.wc-world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.wc-wash, .wc-selection { position: absolute; left: 0; top: 0; display: block; }
+.wc-selection { overflow: visible; mix-blend-mode: multiply; }
+.wc-labels { position: absolute; inset: 0; }
+.wc-label {
+  position: absolute; left: 0; top: 0;
+  padding: 2px 4px; border: 0; background: transparent;
+  font-family: var(--wc-brush); font-weight: 400; line-height: 1;
+  color: var(--wc-ink); letter-spacing: .5px; white-space: nowrap;
+  text-shadow: 0 0 3px #f3ecdcd9, 0 0 1px #f3ecdc;
+  /* The whole stage ignores the pointer (wheel/drag/pinch must reach the map); clicks are hit-tested. */
+  pointer-events: none;
+  transition: font-size .2s ease, color .2s ease;
+}
+.wc-label.selected { color: #000; text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; text-decoration-color: #3b2f2566; }
+.wc-label:focus-visible { outline: 2px solid var(--wc-ink-soft); outline-offset: 2px; border-radius: 4px; }
+
+/* Interest trees: .wc-tree is positioned per frame; .wc-tree-body carries size and growth. */
+.wc-trees { position: absolute; inset: 0; }
+.wc-tree, .wc-leaf { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+.wc-tree-body {
+  position: absolute; left: 0; top: 0;
+  transform-origin: 50% 94%;
+  transition: width .6s cubic-bezier(.34, 1.56, .64, 1), height .6s cubic-bezier(.34, 1.56, .64, 1),
+    margin .6s cubic-bezier(.34, 1.56, .64, 1);
+}
+.wc-tree-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; filter: saturate(.92) drop-shadow(0 1px 1px #5b4a3a33); -webkit-user-drag: none; }
+.wc-tree-shadow { position: absolute; left: 5%; top: 85%; width: 90%; opacity: .8; }
+.wc-trees--instant .wc-tree-body { transition: none; }
+.wc-tree--enter .wc-tree-body { animation: wc-tree-grow .7s cubic-bezier(.34, 1.56, .64, 1) var(--wc-delay, 0ms) both; }
+.wc-tree--leave .wc-tree-body { animation: wc-tree-fade .35s ease forwards; }
+.wc-leaf img { position: absolute; left: 0; top: 0; opacity: .9; }
+.wc-leaf--enter img { animation: wc-fade-in .6s ease .4s both; }
+@keyframes wc-tree-grow { from { transform: scale(0); opacity: 0; } 25% { opacity: 1; } to { transform: scale(1); opacity: 1; } }
+@keyframes wc-tree-fade { to { transform: scale(.6); opacity: 0; } }
+@keyframes wc-fade-in { from { opacity: 0; } }
+.wc-legend .legend-trees { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.wc-legend .legend-trees img { width: 16px; height: 20px; object-fit: contain; }
+
+/* Forecast-spot trees at their exact coordinates: each rises from the page around its trunk base. */
+.wc-popups { position: absolute; inset: 0; }
+.wc-pop { position: absolute; left: 0; top: 0; width: 0; height: 0; perspective: 600px; }
+.wc-pop--down { visibility: hidden; }
+.wc-pop-body {
+  position: absolute; left: 0; top: 0; padding: 0; border: 0; background: transparent;
+  transform-origin: 50% 94%; backface-visibility: hidden;
+}
+.wc-pop-body .wc-tree-img { filter: saturate(.95) drop-shadow(0 3px 2px #3b2f2540); }
+.wc-pop-name {
+  position: absolute; left: 50%; top: 96%; transform: translateX(-50%);
+  font-family: 'Nanum Brush Script', cursive; font-size: 19px; line-height: 1; white-space: nowrap; color: #2f241b;
+  text-shadow: 0 0 3px #f3ecdc, 0 0 6px #f3ecdc;
+}
+.wc-pop--up .wc-pop-body { animation: wc-pop-rise .52s cubic-bezier(.34, 1.56, .64, 1) var(--wc-delay, 0ms) both; }
+@keyframes wc-pop-rise { from { transform: rotateX(90deg); opacity: 0; } 15% { opacity: 1; } to { transform: rotateX(0deg); opacity: 1; } }
+/* The exact spot: a small ink dot under the trunk foot. */
+.wc-pop-foot { position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: #3b2f25; box-shadow: 0 0 0 2px #f3ecdccc; }
+.wc-pop--down .wc-pop-foot { visibility: hidden; }
+/* Names from zoom 14, and always on the picked spot. */
+.wc-popups[data-names='off'] .wc-pop:not(.wc-pop--focus) .wc-pop-name { display: none; }
+.wc-pop--focus .wc-pop-name { font-size: 24px; padding: 2px 8px; border-radius: 8px; background: #fbf7ecee; box-shadow: 0 1px 0 #5b4a3a33; }
+
+/* Falling leaves: a slow swaying loop from level-3 forests, and a one-off burst when a forest grows. */
+.wc-drift { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.wc-drift img {
+  position: absolute; left: 0; top: 0; opacity: 0;
+  animation: wc-leaf-fall var(--wc-dur, 7s) ease-in-out var(--wc-delay, 0s) infinite;
+}
+.wc-drift--burst img { animation-iteration-count: 1; animation-fill-mode: both; }
+.wc-drift.wc-off img { animation-play-state: paused; visibility: hidden; }
+@keyframes wc-leaf-fall {
+  0% { opacity: 0; transform: translate(calc(var(--wc-dx) * .2), calc(var(--wc-fall, 60px) * -1)) rotate(0deg); }
+  12% { opacity: .95; }
+  35% { transform: translate(calc(var(--wc-dx) * .9), calc(var(--wc-fall, 60px) * -.62)) rotate(calc(var(--wc-spin) * .35)); }
+  60% { transform: translate(calc(var(--wc-dx) * .1), calc(var(--wc-fall, 60px) * -.3)) rotate(calc(var(--wc-spin) * .65)); }
+  88% { opacity: .9; }
+  100% { opacity: 0; transform: translate(var(--wc-dx), 4px) rotate(var(--wc-spin)); }
+}
+
+/* Spot picked in the sheet: ink rings spread from the point on arrival (the tree carries the name). */
+.wc-spot-mark {
+  position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible;
+  color: transparent; font-size: 1px; white-space: nowrap; pointer-events: none;
+}
+.wc-spot-mark[hidden] { display: none; }
+.wc-spot-mark::before, .wc-spot-mark::after {
+  content: ''; position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border-radius: 50%;
+  border: 2px solid #3b2f25cc; box-shadow: 0 0 0 3px #f3ecdc80; opacity: 0;
+}
+.wc-spot-mark--pulse::before { animation: wc-ring 1.8s ease-out 3; }
+.wc-spot-mark--pulse::after { animation: wc-ring 1.8s ease-out .6s 3; }
+@keyframes wc-ring { from { transform: scale(.3); opacity: .95; } to { transform: scale(2.2); opacity: 0; } }
+
+/* District bottom sheet (closed → preview → full). Desktop: inside the map frame; phones: fixed above the nav. */
+.wc-sheet {
+  --wc-peek: 182px;
+  --wc-drag: 0px;
+  /* Above NAVER's own controls (z-index 100) so the zoom buttons never float over the sheet. */
+  /* Desktop: at most 64% of the map, so the map above stays usable even when full. */
+  position: absolute; z-index: 120; left: 12px; right: 12px; bottom: 0; height: 64%;
+  word-break: keep-all;
+  display: flex; flex-direction: column;
+  background: #f6f0e2 url('/map-assets/paper-texture.webp') 0 0 / 512px 512px;
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -1px 0 #5b4a3a40, 0 -10px 30px #3b2f2526;
+  color: #3b2f25;
+  transform: translateY(calc(100% + 16px));
+  transition: transform .32s cubic-bezier(.22, .9, .3, 1);
+  touch-action: none;
+}
+.wc-sheet[data-mode='preview'] { transform: translateY(calc(100% - var(--wc-peek) + var(--wc-drag))); }
+.wc-sheet[data-mode='full'] { transform: translateY(max(0px, var(--wc-drag))); }
+.wc-sheet[data-mode='closed'] { pointer-events: none; }
+.wc-sheet.dragging { transition: none; }
+.wc-sheet-head { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; padding: 6px 20px 12px; cursor: grab; user-select: none; }
+.wc-sheet.dragging .wc-sheet-head { cursor: grabbing; }
+.wc-sheet-handle { grid-column: 1 / -1; justify-self: center; display: grid; place-items: center; width: 64px; height: 22px; padding: 0; border: 0; background: transparent; }
+.wc-sheet-handle span { width: 44px; height: 4px; border-radius: 4px; background: #5b4a3a59; }
+.wc-sheet-title h3 { margin: 0 0 4px; font-family: 'Nanum Brush Script', cursive; font-size: 34px; font-weight: 400; letter-spacing: 0; line-height: 1; color: #2f241b; }
+.wc-sheet p { overflow-wrap: break-word; }
+.wc-sheet-title p { margin: 0; font-size: 13px; color: #5b4a3a; display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.wc-sheet-title small { font-size: 12px; color: #8a7663; }
+.wc-sheet-stats { margin-top: 6px !important; font-size: 12px !important; color: #7d6a58 !important; }
+.wc-sheet-actions { display: flex; align-items: flex-start; gap: 8px; }
+.wc-sheet-actions .wc-report { min-height: 40px; padding: 9px 14px; border-radius: 12px; font-size: 13px; background: #3b2f25; }
+.wc-sheet-actions .wc-report:hover { background: #2a2019; }
+.wc-sheet-close { width: 40px; height: 40px; border: 0; border-radius: 12px; background: #5b4a3a14; font-size: 22px; line-height: 1; color: #5b4a3a; }
+.wc-stage-badge { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: #3b2f25; }
+.wc-stage-badge i { width: 12px; height: 12px; border-radius: 50%; }
+
+.wc-sheet-tabs { position: relative; display: grid; grid-template-columns: 1fr 1fr; margin: 0 20px; border-bottom: 1px solid #5b4a3a4d; }
+.wc-sheet-tabs button { padding: 11px 0 10px; border: 0; background: transparent; font-family: 'Nanum Brush Script', cursive; font-size: 21px; color: #8a7663; }
+.wc-sheet-tabs button.active { color: #2f241b; }
+.wc-tab-ink { position: absolute; left: 0; bottom: -2px; width: 50%; height: 3px; border-radius: 3px; background: #3b2f25; transition: transform .2s ease; }
+.wc-tab-ink[data-tab='posts'] { transform: translateX(100%); }
+.wc-sheet-body { flex: 1; min-height: 0; overflow: hidden; }
+.wc-sheet-panes { display: flex; height: 100%; transition: transform .2s ease; }
+.wc-sheet-panes[data-tab='posts'] { transform: translateX(-100%); }
+.wc-sheet-pane { flex: 0 0 100%; height: 100%; overflow-y: auto; overscroll-behavior: contain; padding: 14px 20px 28px; touch-action: pan-y; }
+.wc-sheet[data-mode='preview'] .wc-sheet-pane { overflow: hidden; }
+.wc-sheet-empty { margin: 18px 0; color: #7d6a58; font-size: 13px; line-height: 1.7; }
+.wc-sheet-count { margin: 0 0 12px; font-size: 12px; color: #7d6a58; }
+
+.wc-spot-list { list-style: none; margin: 0; padding: 0; }
+.wc-spot-list li + li { border-top: 1px dashed #5b4a3a40; }
+.wc-spot {
+  position: relative; display: grid; grid-template-columns: 1fr; gap: 4px; width: 100%;
+  padding: 14px 44px 14px 2px; border: 0; background: transparent; text-align: left; color: inherit;
+}
+.wc-spot:hover { background: #5b4a3a0d; }
+.wc-spot-name { font-family: 'Nanum Brush Script', cursive; font-size: 24px; line-height: 1.1; color: #2f241b; }
+.wc-spot-hot { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #b8321e; color: #fbf7ec; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; font-size: 11px; font-style: normal; font-weight: 700; vertical-align: 4px; }
+.wc-spot-meta { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+.wc-spot-kind { padding: 2px 8px; border: 1px solid #5b4a3a59; border-radius: 999px; color: #5b4a3a; }
+.wc-spot-peak { font-size: 13px; color: #5b4a3a; }
+.wc-spot-source { font-size: 11px; color: #8a7663; }
+.wc-spot-go { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: #5b4a3a; }
+.wc-post-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.wc-post-grid .report-card { background: #fffdf7; box-shadow: 0 1px 0 #5b4a3a26; }
+.wc-more { width: 100%; margin-top: 16px; background: #5b4a3a14; color: #3b2f25; }
+
+@media (max-width: 900px) {
+  .wc-sheet {
+    /* z-index stays 120: it only competes inside the isolated .zone-map, so the page nav (15) still wins. */
+    position: fixed; left: 0; right: 0;
+    bottom: calc(78px + env(safe-area-inset-bottom, 0px));
+    height: min(78vh, 680px);
+  }
+  .wc-post-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 650px) {
+  .wc-sheet { --wc-peek: 172px; }
+  .wc-sheet-head { padding: 4px 16px 10px; }
+  .wc-sheet-title h3 { font-size: 30px; }
+  .wc-sheet-tabs { margin: 0 16px; }
+  .wc-sheet-pane { padding: 12px 16px 24px; }
+  .wc-sheet-actions .wc-report { padding: 9px 11px; }
+}
+
+/* Controls sit above the stage (z-index 1) like NAVER's own controls; the right gap leaves room for the +/− control. */
+.wc-toolbar { z-index: 2; right: 58px; }
+.wc-toolbar>span, .wc-toolbar>button {
+  background: #fbf7ecee; color: var(--wc-ink-soft);
+  box-shadow: 0 1px 0 #5b4a3a33, 0 2px 10px #5b4a3a14;
+}
+.wc-toolbar>button { font-family: var(--wc-brush); font-size: 16px; padding: 8px 14px; }
+.wc-toolbar>button:hover { background: #f3ecdc; }
+.wc-message { background: #f3ecdcf5; color: var(--wc-ink-soft); }
+
+.wc-legend .legend-step i { width: 13px; height: 13px; border-radius: 50%; box-shadow: none; }
+.wc-legend .legend-title { font-family: 'Nanum Brush Script', cursive; font-size: 16px; font-weight: 400; color: #3b2f25; }
+
+@media (max-width: 650px) {
+  .wc-toolbar>button { font-size: 14px; padding: 7px 11px; }
+  .wc-toolbar { right: 52px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wc-paper, .wc-label, .wc-tree-body { transition: none; }
+  /* style.css turns every animation off with !important under reduced motion; these fades
+     are the requested replacement, so they need !important (and win on specificity). */
+  .wc-tree--enter .wc-tree-body { animation: wc-fade-in .25s ease var(--wc-delay, 0ms) both !important; }
+  .wc-tree--leave .wc-tree-body { animation: wc-fade-in .25s ease reverse forwards !important; }
+  .wc-leaf--enter img { animation: none; }
+  .wc-sheet, .wc-sheet-panes, .wc-tab-ink { transition: opacity .2s ease; }
+  .wc-spot-mark--pulse::before { animation: none !important; opacity: 1; }
+  .wc-spot-mark--pulse::after { animation: none !important; }
+  .wc-pop--up .wc-pop-body { animation: wc-fade-in .25s ease var(--wc-delay, 0ms) both !important; }
+  .wc-drift { display: none; }
+}

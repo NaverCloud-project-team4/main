@@ -1,5 +1,6 @@
 import argparse
 import csv
+import json
 from datetime import date, datetime
 from pathlib import Path
 from alembic import command
@@ -16,7 +17,6 @@ from .models import (
     Season,
     Zone,
     ForecastSpot,
-    Item,
     Report,
     ReportVerification,
     uid,
@@ -25,15 +25,10 @@ from .models import (
 from .security import hash_password
 from .storage import get_storage, normalize_image
 from .services import aggregate_zones, decide_report
+from .tree import seed_tree_items
+from .showcase import ensure_demo_points, reset_showcase, seed_showcase
 
 DATA = Path(__file__).resolve().parent / "data"
-
-ITEMS = [
-    ("ribbon", "가을 리본", 30, "decoration", "🎀"),
-    ("star", "반짝이는 별", 50, "decoration", "⭐"),
-    ("mushroom", "작은 버섯", 20, "ground", "🍄"),
-]
-
 
 def load_districts():
     return [
@@ -93,9 +88,7 @@ def initialize(demo=False):
         db.flush()
         seed_districts(db)
         seed_forecast_spots(db, str(year))
-        for iid, name, price, slot, icon in ITEMS:
-            if not db.get(Item, iid):
-                db.add(Item(id=iid, name=name, price=price, slot=slot, icon=icon))
+        seed_tree_items(db)  # 나만의 나무 아이템 카탈로그(id 기준 upsert)
         if demo:
             for email, nickname, role, password in [
                 ("demo@example.com", "단풍지기", "user", "DemoPass123!"),
@@ -103,6 +96,8 @@ def initialize(demo=False):
             ]:
                 if not db.scalar(select(User).where(User.email == email)):
                     db.add(User(email=email, nickname=nickname, role=role, password_hash=hash_password(password)))
+            db.flush()
+            ensure_demo_points(db)  # 데모 계정만: 큰나무 + 아이템 몇 개를 살 잔액(시드 전용, 승인 규칙은 그대로)
     if demo:
         seed_reports(str(year))
     with SessionLocal.begin() as db:
@@ -165,12 +160,21 @@ def seed_reports(season_id):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=["init", "promote-admin", "aggregate"])
+    parser.add_argument("action", choices=["init", "promote-admin", "aggregate", "seed-showcase", "reset-showcase"])
     parser.add_argument("--demo", action="store_true")
     parser.add_argument("--email")
+    parser.add_argument("--confirm", action="store_true", help="운영 환경에서 시연 데이터를 만들거나 지울 때 필요")
+    parser.add_argument("--config", type=Path, help="시연 설정 파일 (기본: backend/app/data/showcase.json)")
     args = parser.parse_args()
     if args.action == "init":
         initialize(args.demo)
+    elif args.action in ("seed-showcase", "reset-showcase"):
+        from .showcase import load_config
+
+        run = seed_showcase if args.action == "seed-showcase" else reset_showcase
+        result = run(SessionLocal, load_config(args.config), confirm=args.confirm)
+        result["aggregate"] = run_aggregation()  # 다음 1분 집계를 기다리지 않고 지도와 지도 JSON에 바로 반영
+        print(json.dumps(result, ensure_ascii=False, default=str))
     elif args.action == "aggregate":
         print(run_aggregation())
     elif not args.email:

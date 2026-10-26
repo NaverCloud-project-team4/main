@@ -77,6 +77,13 @@ class EquipIn(BaseModel):
     item_id: str = Field(min_length=1, max_length=40)
 
 
+class TreeSaveIn(BaseModel):
+    """나만의 나무 저장. species는 나무 종류 키, slots는 {슬롯: 아이템 id | null(해제)}. 보낸 것만 바뀐다."""
+
+    species: str | None = Field(None, max_length=20)
+    slots: dict[str, str | None] = Field(default_factory=dict, max_length=12)
+
+
 class LocationIn(BaseModel):
     latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
     longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)

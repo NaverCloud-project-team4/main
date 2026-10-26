@@ -12,9 +12,9 @@ BOUNDARY_FILE = Path(__file__).parent / "data" / "seoul_districts_20261001.geojs
 
 @lru_cache(maxsize=1)
 def seoul_boundaries():
-    source = json.loads(BOUNDARY_FILE.read_text())
+    source = json.loads(BOUNDARY_FILE.read_text(encoding="utf-8"))
     ids = {f["properties"]["name"]: f["id"] for f in json.loads(
-        (BOUNDARY_FILE.parent / "zones_seoul25.geojson").read_text()
+        (BOUNDARY_FILE.parent / "zones_seoul25.geojson").read_text(encoding="utf-8")
     )["features"]}
     for feature in source["features"]:
         feature["id"] = ids[feature["properties"]["name"]]

@@ -30,13 +30,14 @@ from .models import (
     now,
     uid,
 )
-from .schemas import LoginIn, RegisterIn, UserOut, AuthOut, ReportOut, ReportPage, ReviewIn, EquipIn, Stage, Species, LocationIn
+from .schemas import LoginIn, RegisterIn, UserOut, AuthOut, ReportOut, ReportPage, ReviewIn, EquipIn, TreeSaveIn, Stage, Species, LocationIn
 from .security import current_user, optional_user, admin_user, hash_password, check_password, make_token
 from .storage import get_storage, normalize_image
 from .geography import geometry_covers, seoul_boundaries, canonical_zone_id
-from .services import set_like, decide_report, resolve_zone, zone_summaries, map_document
+from .services import set_like, decide_report, resolve_zone, zone_summaries, map_document, forecast_spot_list
 from .aggregate import run_aggregation
 from .jobs import enqueue
+from .tree import check_equip, item_extras, owned_ids, save_tree, tree_state
 
 s = get_settings()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -283,6 +284,12 @@ def map_data(db: DB):
     return map_document(db)
 
 
+@app.get("/api/forecast-spots", tags=["지도"])
+def forecast_spots(db: DB, zone_id: str | None = Query(None, max_length=40)):
+    """현재 시즌의 단풍 명소(예측 지점). zone_id로 구를 거른다. 읽기 전용."""
+    return forecast_spot_list(db, zone_id)
+
+
 @app.post("/api/internal/aggregate", tags=["운영"])
 def aggregate(x_aggregate_key: Annotated[str | None, Header()] = None):
     """1분 크론(Cloud Functions)이 호출한다. 단계·관심도를 다시 계산하고 지도 JSON을 올린다."""
@@ -527,7 +534,7 @@ def points(db: DB, user: Current):
 
 @app.get("/api/items", tags=["나무"])
 def items(db: DB, user: Optional):
-    owned = set(db.scalars(select(UserItem.item_id).where(UserItem.user_id == user.id))) if user else set()
+    owned = owned_ids(db, user.id) if user else set()
     equipped = set(db.scalars(select(TreeEquipment.item_id).where(TreeEquipment.user_id == user.id))) if user else set()
     return [
         {
@@ -535,11 +542,13 @@ def items(db: DB, user: Optional):
             "name": i.name,
             "price": i.price,
             "slot": i.slot,
+            "group": i.slot,
             "icon": i.icon,
-            "owned": i.id in owned,
+            "owned": i.id in owned or i.price == 0,
             "equipped": i.id in equipped,
+            **item_extras(i.id),
         }
-        for i in db.scalars(select(Item).order_by(Item.price))
+        for i in db.scalars(select(Item).order_by(Item.price, Item.id))
     ]
 
 
@@ -548,6 +557,8 @@ def purchase(item_id: str, db: DB, user: Current):
     item = db.get(Item, item_id)
     if item is None:
         raise HTTPException(404, "아이템을 찾을 수 없습니다.")
+    if item.price == 0:  # 무료 아이템은 구매 기록 없이 보유로 본다
+        return {"owned": True, "balance": user.points}
     db.execute(update(User).where(User.id == user.id).values(points=User.points))
     db.refresh(user)
     if db.get(UserItem, (user.id, item_id)) is not None:
@@ -568,11 +579,7 @@ def purchase(item_id: str, db: DB, user: Current):
 @app.put("/api/me/tree/equipment/{slot}", tags=["나무"])
 def equip(slot: str, payload: EquipIn, db: DB, user: Current):
     db.execute(update(User).where(User.id == user.id).values(points=User.points))
-    item = db.get(Item, payload.item_id)
-    if item is None or item.slot != slot:
-        raise HTTPException(422, "아이템 장착 위치가 올바르지 않습니다.")
-    if db.get(UserItem, (user.id, item.id)) is None:
-        raise HTTPException(403, "보유한 아이템만 장착할 수 있습니다.")
+    item = check_equip(db, user.id, slot, payload.item_id)  # 슬롯 그룹(branch-1..4 → branch)·해금·보유
     equipment = db.get(TreeEquipment, (user.id, slot))
     if equipment:
         equipment.item_id = item.id
@@ -580,6 +587,21 @@ def equip(slot: str, payload: EquipIn, db: DB, user: Current):
         db.add(TreeEquipment(user_id=user.id, slot=slot, item_id=item.id))
     db.commit()
     return {"slot": slot, "item_id": item.id}
+
+
+@app.get("/api/me/tree", tags=["나무"])
+def my_tree(db: DB, user: Current):
+    """나무 종류, 성장 단계(누적 적립 기준), 슬롯별 해금·장착 상태."""
+    return tree_state(db, user)
+
+
+@app.put("/api/me/tree", tags=["나무"])
+def save_my_tree(payload: TreeSaveIn, db: DB, user: Current):
+    """종류와 여러 슬롯을 한 번에 저장한다. 하나라도 틀리면 아무것도 바뀌지 않는다."""
+    db.execute(update(User).where(User.id == user.id).values(points=User.points))  # 같은 사용자 동시 저장 직렬화
+    state = save_tree(db, user, payload.species, payload.slots)
+    db.commit()
+    return state
 
 
 @app.get("/api/admin/reports", response_model=ReportPage, tags=["운영자"])

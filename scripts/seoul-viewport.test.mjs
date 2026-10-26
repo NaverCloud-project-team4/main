@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { centreLimits, clampSeoulCentre, insideCity } from '../frontend/src/lib/seoulViewport.js';
+import { centreLimits, clampSeoulCentre, coveredView, insideCity } from '../frontend/src/lib/seoulViewport.js';
 
 const point = (x,y) => ({x,y});
 const ring = values => values.map(([x,y])=>point(x,y));
@@ -57,4 +57,25 @@ test('real Seoul boundaries clamp nearby cities and viewport changes determinist
       assert.ok(Math.hypot(again.x-fixed.x,again.y-fixed.y)<1e-12);
     }
   }
+});
+
+test('a bottom sheet hides the south of the view; the limits use the part above it', () => {
+  const view = { minX: 0, maxX: 10, minY: 0, maxY: 10 };
+  assert.deepEqual(coveredView(view, 0, 500), { shift: 0, seen: view });
+  // y grows northwards: the bottom of the screen is minY.
+  const north = coveredView(view, 100, 500, 1);
+  assert.deepEqual(north.seen, { minX: 0, maxX: 10, minY: 2, maxY: 10 });
+  assert.equal(north.shift, 1);
+  // y grows southwards: the bottom of the screen is maxY.
+  const south = coveredView(view, 100, 500, -1);
+  assert.deepEqual(south.seen, { minX: 0, maxX: 10, minY: 0, maxY: 8 });
+  assert.equal(south.shift, -1);
+  // never more than 80% covered
+  assert.equal(coveredView(view, 1000, 500, 1).seen.minY, 8);
+  // A whole-city overview (axis locked) becomes draggable north–south once a sheet covers its bottom.
+  const city = { minX: 0, maxX: 10, minY: 0, maxY: 10 };
+  const locked = centreLimits(city, view);
+  assert.equal(locked.maxY - locked.minY, 0);
+  const open = centreLimits(city, coveredView(view, 180, 580, 1).seen);
+  assert.ok(open.maxY > open.minY && open.maxX === open.minX);
 });
