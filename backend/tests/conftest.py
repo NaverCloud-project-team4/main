@@ -12,6 +12,7 @@ os.environ.update(
     REPORT_COOLDOWN_SECONDS="0",
     RETRY_BASE_SECONDS="0",
     S3_BUCKET="test-bucket",
+    SPECIES_CACHE_SECONDS="0",  # tests read species right after writing reports
 )
 import pytest
 from fastapi.testclient import TestClient

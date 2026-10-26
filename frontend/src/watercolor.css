@@ -162,6 +162,7 @@
 }
 .wc-spot:hover { background: #5b4a3a0d; }
 .wc-spot-name { font-family: 'Nanum Brush Script', cursive; font-size: 24px; line-height: 1.1; color: #2f241b; }
+.wc-spot-hot { margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: #b8321e; color: #fbf7ec; font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; font-size: 11px; font-style: normal; font-weight: 700; vertical-align: 4px; }
 .wc-spot-meta { display: flex; align-items: center; gap: 10px; font-size: 12px; }
 .wc-spot-kind { padding: 2px 8px; border: 1px solid #5b4a3a59; border-radius: 999px; color: #5b4a3a; }
 .wc-spot-peak { font-size: 13px; color: #5b4a3a; }

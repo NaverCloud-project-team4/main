@@ -9,6 +9,7 @@ import ReportCard from './ReportCard';
 // [대표 명소] (forecast spots) and [사용자 게시물] (the approved feed for this district).
 const KIND = { MOUNTAIN: '단풍 명소', GINKGO: '은행나무길' };
 const PAGE_SIZE = 6;
+const POPULAR_MIN = 3; // recent reports near a spot before it is called popular
 const dayText = iso => new Date(`${iso}T00:00:00`).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
 const spotCache = new Map();
 
@@ -34,11 +35,13 @@ function SpotList({ zoneId, onFocus }) {
   if (error) return <p className="wc-sheet-empty" role="alert">명소를 불러오지 못했어요. {error}</p>;
   if (!spots) return <p className="wc-sheet-empty" role="status">명소를 불러오고 있어요.</p>;
   if (!spots.length) return <p className="wc-sheet-empty">이 구에는 등록된 대표 명소가 아직 없어요.</p>;
-  return <ul className="wc-spot-list">{spots.map(spot => <li key={spot.id}>
+  // Spots with the most recent reports nearby come first; the top one gets "요즘 인기".
+  const ranked = [...spots].sort((a, b) => (b.recent_reports ?? 0) - (a.recent_reports ?? 0));
+  return <ul className="wc-spot-list">{ranked.map((spot, i) => <li key={spot.id}>
     <button type="button" className="wc-spot" onClick={() => onFocus(spot)} aria-label={`${spot.name} 지도에서 보기`}>
-      <span className="wc-spot-name">{spot.name}</span>
+      <span className="wc-spot-name">{spot.name}{i === 0 && spot.recent_reports >= POPULAR_MIN ? <em className="wc-spot-hot">요즘 인기</em> : null}</span>
       <span className="wc-spot-meta"><span className="wc-spot-kind">{KIND[spot.kind] || spot.kind}</span><StageBadge stage={spot.stage}/></span>
-      <span className="wc-spot-peak">예상 절정 <b>{dayText(spot.peak_date)}</b></span>
+      <span className="wc-spot-peak">예상 절정 <b>{dayText(spot.peak_date)}</b>{spot.recent_reports ? <> · 최근 제보 <b>{spot.recent_reports}</b>건</> : null}</span>
       <small className="wc-spot-source">예측: {spot.source}</small>
       <span className="wc-spot-go" aria-hidden="true"><Icon name="pin" size={16}/></span>
     </button>

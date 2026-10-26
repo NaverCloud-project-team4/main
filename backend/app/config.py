@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     report_cooldown_seconds: int = 5
     report_points: int = 20
     activity_days: int = 7
+    species_cache_seconds: int = 60  # /api/zones의 우세 수종 메모리 캐시(집계 주기와 같게). 0이면 끔
     stage_window_days: int = 3
     stage_vote_size: int = 10
     stage_min_reports: int = 3
