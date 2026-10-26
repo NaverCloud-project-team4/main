@@ -4,6 +4,7 @@ import { installSeoulViewport } from '../lib/seoulViewport';
 import { loadNaverMaps, onNaverMapAuthFailure, NAVER_MAP_STYLE_ID, waitForNaverMapInit } from '../lib/naverMaps';
 import { createWatercolorStage } from '../lib/watercolorLayer';
 import { STAGE_ORDER, STAGE_WASH } from '../lib/watercolorPalette';
+import { loadBrushFont } from '../lib/brushFont';
 import '../watercolor.css';
 
 // Every map image goes through these names; replace a file in public/map-assets/ to restyle.
@@ -18,19 +19,6 @@ export const MAP_ASSETS = Object.freeze({
   ginkgoLeaves: ['/map-assets/leaf-ginkgo-1.png', '/map-assets/leaf-ginkgo-2.png'],
 });
 const STYLE_ID = (import.meta.env.VITE_NAVER_MAP_STYLE_ID_WATERCOLOR || '').trim() || NAVER_MAP_STYLE_ID;
-const FONT_ID = 'kauroong-brush-font';
-
-// Google Fonts splits Korean fonts into unicode-range slices, so the browser only
-// downloads the slices for glyphs on screen (district, spot and heading names).
-function loadBrushFont() {
-  if (document.getElementById(FONT_ID)) return;
-  const link = document.createElement('link');
-  link.id = FONT_ID;
-  link.rel = 'stylesheet';
-  link.href = 'https://fonts.googleapis.com/css2?family=Nanum+Brush+Script&display=swap';
-  document.head.appendChild(link);
-}
-
 // children: the district sheet, rendered inside the map frame (fixed to the screen on phones).
 export default function WatercolorZoneMap({ zones, selected, onSelect, onSpotSelect, onEmptyClick, focusSpot, children }) {
   const canvasRef = useRef(null);

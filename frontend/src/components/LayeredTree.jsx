@@ -76,7 +76,8 @@ export default function LayeredTree({ species, stage, slots, label, interactive 
   const drag = useRef(null);
   const enabled = interactive && !reducedMotion();
   const onPointerDown = event => {
-    if (!enabled || tiltOn) return;
+    // Buttons placed on the tree (slot pins) keep their own clicks; capturing would swallow them.
+    if (!enabled || tiltOn || event.target.closest('button')) return;
     const rect = event.currentTarget.getBoundingClientRect();
     drag.current = { x: event.clientX, y: event.clientY, w: rect.width / 2, h: rect.height / 2 };
     setSettling(false);

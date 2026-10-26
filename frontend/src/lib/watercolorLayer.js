@@ -235,6 +235,8 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
       return { x: p.x - left, y: p.y - top };
     };
     const grain = await loadGrain(grainUrl);
+    // The map may have been closed (e.g. switching tabs) while the grain was loading.
+    if (token !== state.token || state.destroyed || !overlay.getProjection()) return;
     const svg = buildWashSvg({
       width: rasterWidth, height: rasterHeight, project, zoom, grain, quality, river,
       districts: districts.map(d => ({ id: d.id, geometry: d.geometry, stage: state.zones.get(d.id)?.stage })),

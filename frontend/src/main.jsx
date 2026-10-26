@@ -13,6 +13,7 @@ import './style.css';
 const MAP_THEME = import.meta.env.VITE_MAP_THEME === 'watercolor' ? 'watercolor' : 'classic';
 const WatercolorZoneMap = lazy(() => import('./components/WatercolorZoneMap'));
 const ZoneSheet = lazy(() => import('./components/ZoneSheet'));
+const TreePage = lazy(() => import('./components/TreePage'));
 // Map refresh interval; lower it (e.g. 15000) for live demos. Never below 5 s.
 const ZONE_POLL_MS = Math.max(5000, Number(import.meta.env.VITE_ZONE_POLL_MS) || 60000);
 const pending = status => ['PENDING_UPLOAD', 'PENDING_AI'].includes(status);
@@ -95,12 +96,6 @@ function App() {
     });
     setBusy(false);
   };
-  const purchase = item => run(async () => {
-    if (!token) return setAuthOpen(true);
-    if (!item.owned) await api(`/api/me/items/${item.id}`, { token, method: 'PUT' });
-    await api(`/api/me/tree/equipment/${item.slot}`, { token, method: 'PUT', body: { item_id: item.id } });
-    await refresh(); notify(`${item.name}을 적용했어요.`);
-  });
   const decide = (report, decision) => run(async () => {
     await api(`/api/admin/reports/${report.id}/decision`, { token, method: 'POST', body: { decision, reason: decision === 'APPROVED' ? '운영자가 사진을 확인하고 승인했습니다.' : '운영자 검토 후 대상 사진이 아니어서 반려했습니다.' } });
     await refresh(); notify('검토 결과를 저장했어요.');
@@ -138,7 +133,7 @@ function App() {
       <div className="my-reports-heading"><div><h2>내 제보</h2><p className="subtle">지금까지 {mine.length}건을 남겼어요.</p></div><button className="button" onClick={() => setTab('report')}>사진 제보하기 →</button></div>
       {mine.length ? <div className="feed-grid">{mine.map(r => <ReportCard key={r.id} report={r} like={like} own />)}</div> : <Empty text="아직 남긴 제보가 없어요. 첫 번째 가을 사진을 남겨보세요." />}
     </>}</>}
-    {tab === 'tree' && <div className="tree-layout"><div className="panel personal-tree"><p className="tree-caption">작은 제보로 쑥쑥 자라요</p><div className="tree-art"><div className="crown crown-one"/><div className="crown crown-two"/><div className="crown crown-three"/><div className="trunk"/><div className="tree-decoration">{items.filter(i => i.equipped && i.slot === 'decoration').map(i => i.icon)}</div><div className="tree-ground">{items.filter(i => i.equipped && i.slot === 'ground').map(i => i.icon)}</div></div><h2>{user ? `${user.nickname}님의 가을` : '나만의 가을 나무'}</h2><p>제보 승인 한 건에 {config?.report_points || 20}P가 쌓여요.</p><b>{user?.points || 0} P</b></div><div className="panel shop"><h2>나무 꾸미기</h2><p className="subtle">마음에 드는 아이템으로 나무를 꾸며보세요.</p>{items.map(i => <div className="shop-item" key={i.id}><span className="item-icon">{i.icon}</span><div><b>{i.name}</b><small>{i.owned ? '보유 중' : `${i.price}P`}</small></div><button className="button secondary" disabled={i.equipped} onClick={() => purchase(i)}>{i.equipped ? '적용 중' : i.owned ? '적용' : '구매·적용'}</button></div>)}</div></div>}
+    {tab === 'tree' && <Suspense fallback={<div className="panel" role="status">나무를 불러오고 있어요.</div>}><TreePage user={user} token={token} onLogin={() => setAuthOpen(true)} onChanged={() => refresh().catch(e => setError(e.message))} notify={notify} setError={setError}/></Suspense>}
     {tab === 'review' && <>{reviews.length ? <div className="feed-grid">{reviews.map(r => <ReportCard key={r.id} report={r} admin><div className="review-actions"><button className="button" onClick={() => decide(r, 'APPROVED')}>승인</button><button className="button secondary" onClick={() => decide(r, 'REJECTED')}>반려</button></div></ReportCard>)}</div> : <Empty text="검토 대기 중인 사진이 없어요." />}</>}
     <details className="network-panel"><summary>개발자 도구 <span className={`connection ${health ? 'online' : ''}`}><i /> API {health ? '연결됨' : '연결 확인 중'}</span></summary>{config?.demo_enabled && <div className="demo-banner"><span><b>로컬 테스트 모드</b><br/>사진 검증은 데모 시나리오로 실행돼요. 실제 사진 내용에 따른 AI 판별이 아니에요.</span>{!user && <button className="button secondary" onClick={() => demoLogin(false)}>테스트 계정으로 시작</button>}</div>}<div className="network-heading"><span>API 통신 기록 · {logs.length}건</span><a href={`${API_BASE}/docs`} target="_blank" rel="noreferrer">API 문서 ↗</a></div><div className="network-table">{logs.map(log => <div key={log.id}><time>{log.time}</time><b>{log.method}</b><code>{log.path}</code><span className={log.status >= 200 && log.status < 400 ? 'ok' : 'fail'}>{log.status || '연결 실패'}</span><small>{log.ms}ms</small></div>)}</div></details>
     <footer>까우룽까우룽<span>우리 동네의 가을 기록</span></footer>
