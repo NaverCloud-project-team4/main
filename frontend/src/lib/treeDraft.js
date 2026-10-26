@@ -8,6 +8,15 @@ export const SPECIES_ITEM = Object.freeze({ maple: 'tree-maple', ginkgo: 'tree-g
 export const STAGE_LABEL = Object.freeze({ sprout: '새싹', sapling: '묘목', young: '어린나무', grown: '큰나무' });
 // With the subject particle (새싹이 / 어린나무가) for "…가 되면 열려요".
 export const STAGE_SUBJECT = Object.freeze({ sprout: '새싹이', sapling: '묘목이', young: '어린나무가', grown: '큰나무가' });
+// "…으로 자랐어요" for the growth announcement.
+export const STAGE_BECAME = Object.freeze({ sprout: '새싹으로', sapling: '묘목으로', young: '어린나무로', grown: '큰나무로' });
+const STAGE_KEYS = Object.keys(STAGE_LABEL);
+
+/** Stage to replay growth from: the last stage this person saw, if the tree has grown since (else null). */
+export function replayGrowthFrom(lastSeen, current) {
+  const from = STAGE_KEYS.indexOf(lastSeen), to = STAGE_KEYS.indexOf(current);
+  return from >= 0 && to > from ? lastSeen : null;
+}
 export const SLOT_UNLOCK = Object.freeze({ background: 'sprout', ground: 'sprout', 'branch-1': 'sapling', 'branch-2': 'sapling', 'branch-3': 'young', 'branch-4': 'young', topper: 'grown' });
 export const GROUPS = Object.freeze(['topper', 'branch', 'ground', 'background']);
 export const GROUP_LABEL = Object.freeze({ topper: '꼭대기', branch: '가지', ground: '바닥', background: '배경' });

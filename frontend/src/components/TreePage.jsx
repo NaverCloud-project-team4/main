@@ -4,7 +4,7 @@ import anchors from '../lib/treeAnchors.json';
 import { TREE_ASSETS, TREE_PARTS } from '../lib/treeAssets';
 import { loadBrushFont } from '../lib/brushFont';
 import {
-  draftReducer, GROUP_LABEL, GROUPS, groupOfSlot, isDirty, itemAction, savePayload, sceneSlots, SLOT_LABEL,
+  draftReducer, fits, GROUP_LABEL, GROUPS, groupOfSlot, isDirty, itemAction, replayGrowthFrom, savePayload, sceneSlots, SLOT_LABEL, STAGE_BECAME,
   SLOT_UNLOCK, sortItems, SPECIES, SPECIES_LABEL, SPECIES_SHORT, speciesAction, STAGE_LABEL, targetSlot, unlockHint,
 } from '../lib/treeDraft';
 import LayeredTree from './LayeredTree';
@@ -13,6 +13,11 @@ const GUEST_TREE = { species: 'maple', balance: 0, growth: { earned: 0, stage: '
   slots: Object.entries(SLOT_UNLOCK).map(([slot, stage]) => ({ slot, item_id: null, unlocked: stage === 'sprout', unlock_stage: stage })) };
 const thumb = item => (item.group === 'background' ? TREE_ASSETS.background(item.id) : TREE_ASSETS.item(item.id));
 const pct = v => `${(v / anchors.canvas * 100).toFixed(2)}%`;
+const GROWTH_REPLAY_MS = 700;
+// The last stage this person saw, so growth earned elsewhere (on the map) plays when they come back.
+const seenKey = userId => `kauroong.treeStage.${userId}`;
+const readSeen = userId => { try { return localStorage.getItem(seenKey(userId)); } catch { return null; } };
+const writeSeen = (userId, stage) => { try { localStorage.setItem(seenKey(userId), stage); } catch { /* private mode: no replay */ } };
 
 function GrowthPanel({ tree }) {
   const g = tree.growth;
@@ -78,6 +83,22 @@ export default function TreePage({ user, token, onLogin, onChanged, notify, setE
   }, [token]);
   useEffect(() => { load().catch(e => setError(e.message)); }, [load, setError]);
 
+  // Grew since the last visit? Show the old stage for a moment, then grow into the new one.
+  const actualStage = state?.tree.growth.stage;
+  const [replayFrom, setReplayFrom] = useState(null);
+  useEffect(() => {
+    if (!token || !user || !actualStage) return undefined;
+    const from = replayGrowthFrom(readSeen(user.id), actualStage);
+    writeSeen(user.id, actualStage);
+    if (!from) return undefined;
+    setReplayFrom(from);
+    const timer = setTimeout(() => {
+      setReplayFrom(null);
+      notify?.(`나무가 ${STAGE_BECAME[actualStage]} 자랐어요!`);
+    }, GROWTH_REPLAY_MS);
+    return () => clearTimeout(timer);
+  }, [token, user?.id, actualStage]);
+
   const guard = async fn => {
     setBusy(true);
     try { await fn(); } catch (e) { setError(e.message); } finally { setBusy(false); }
@@ -98,7 +119,9 @@ export default function TreePage({ user, token, onLogin, onChanged, notify, setE
 
   if (!state) return <div className="tp-page tp-loading" role="status">나무를 불러오고 있어요.</div>;
   const balance = state.tree.balance;
-  const stage = state.tree.growth.stage;
+  const stage = replayFrom || state.tree.growth.stage;
+  const background = itemsById[state.draft.slots.background];
+  const effect = background && fits(background, state.draft.species) ? background.effect : null;
   const dirty = token && isDirty(state);
   const group = state.tab;
   const target = targetSlot(state, group);
@@ -106,7 +129,7 @@ export default function TreePage({ user, token, onLogin, onChanged, notify, setE
 
   return <div className="tp-page">
     <div className="tp-tree-col">
-      <LayeredTree species={state.draft.species} stage={stage} slots={sceneSlots(state, itemsById)} label={`${SPECIES_LABEL[state.draft.species]} ${STAGE_LABEL[stage]}`}>
+      <LayeredTree species={state.draft.species} stage={stage} slots={sceneSlots(state, itemsById)} effect={effect} label={`${SPECIES_LABEL[state.draft.species]} ${STAGE_LABEL[stage]}`}>
         {token && <SlotPins state={state} onSelect={slot => dispatch({ type: 'select', slot })}/>}
       </LayeredTree>
       {!token && <div className="tp-guest"><p>로그인하면 제보로 모은 포인트로 나만의 나무를 키우고 꾸밀 수 있어요.</p><button type="button" className="button" onClick={onLogin}>로그인하고 시작하기</button></div>}

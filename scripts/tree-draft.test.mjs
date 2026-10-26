@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { draftReducer, initDraft, isDirty, itemAction, savePayload, sceneSlots, sortItems, speciesAction, targetSlot, unlockHint } from '../frontend/src/lib/treeDraft.js';
+import { draftReducer, initDraft, isDirty, itemAction, replayGrowthFrom, savePayload, sceneSlots, sortItems, speciesAction, targetSlot, unlockHint } from '../frontend/src/lib/treeDraft.js';
 
 // Shapes copied from GET /api/me/tree and GET /api/items.
 const tree = {
@@ -102,4 +102,12 @@ test('reloading after a save keeps the open tab and picked slot', () => {
 test('item lists show what fits this tree first, then owned, then cheapest', () => {
   const list = [items.snowman, items.bench, items['maple-mobile'], items['fairy-lights'], items.star];
   assert.deepEqual(sortItems(list, 'maple').map(i => i.id), ['fairy-lights', 'maple-mobile', 'bench', 'star', 'snowman']);
+});
+
+test('growth is replayed only when the tree grew since the last visit', () => {
+  assert.equal(replayGrowthFrom('sapling', 'young'), 'sapling');
+  assert.equal(replayGrowthFrom('sprout', 'grown'), 'sprout');
+  assert.equal(replayGrowthFrom('young', 'young'), null);
+  assert.equal(replayGrowthFrom(null, 'young'), null, 'first visit: nothing to replay');
+  assert.equal(replayGrowthFrom('garbage', 'young'), null);
 });

@@ -48,8 +48,33 @@
   background: #fbf7ecee; color: var(--lt-ink); font-size: 12px; box-shadow: 0 1px 0 #5b4a3a33;
 }
 .lt-tilt[aria-pressed='true'] { background: #3b2f25; color: #fbf7ec; }
+/* Hanging a decoration: a quick "pop" from its hook (branches) or its base (topper, ground props). */
+.lt-pop { animation: lt-pop .32s cubic-bezier(.34, 1.56, .64, 1) both; }
+.lt-branch .lt-pop { transform-origin: 50% 0; }
+.lt-topper .lt-pop, .lt-ground .lt-pop { transform-origin: 50% 100%; }
+@keyframes lt-pop { from { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } to { transform: scale(1); opacity: 1; } }
+/* Switching species: plain crossfade. A new background fades in. */
+.lt-fadein img { animation: lt-fade-in .45s ease both; }
+.switching .lt-out img { animation-duration: .45s; }
+.lt-background img { animation: lt-fade-in .5s ease both; }
+
+/* Background effects (snow, petals, leaves fall; fireflies wander and blink), behind the tree. */
+.lt-effect .lt-fall img { opacity: 0; }
+.lt-wander { position: absolute; inset: 0; animation: lt-wander var(--dur, 8s) ease-in-out var(--delay, 0s) infinite alternate; }
+.lt-wander img { position: absolute; width: auto; height: auto; animation: lt-blink 2.6s ease-in-out var(--delay, 0s) infinite; }
+@keyframes lt-wander { from { transform: translate(0, 0); } to { transform: translate(calc(var(--dx) * 1%), calc(var(--dy) * 1%)); } }
+@keyframes lt-blink { 0%, 100% { opacity: .15; } 50% { opacity: 1; } }
+/* Nothing animates while the tree is scrolled away. */
+.lt-offscreen .lt-fall, .lt-offscreen .lt-fall img, .lt-offscreen .lt-wander, .lt-offscreen .lt-wander img { animation-play-state: paused; }
+
 @media (prefers-reduced-motion: reduce) {
   .lt-stage, .lt-layer { transform: none !important; }
+  /* Decorations, species switches and backgrounds fade instead of popping. */
+  .lt-pop, .lt-fadein img, .lt-background img { animation: lt-fade-in .3s ease both !important; transform: none !important; }
+  /* Background effects stand still as a light sprinkle. */
+  .lt-effect .lt-fall, .lt-effect .lt-fall img, .lt-wander, .lt-wander img { animation: none !important; }
+  .lt-effect .lt-fall { transform: translate(0, calc(var(--dy) * .45%)) !important; }
+  .lt-effect .lt-fall img, .lt-wander img { opacity: .75 !important; }
   /* No falling leaves; growing is a plain crossfade (style.css turns animations off with !important). */
   .lt-falling { display: none; }
   .lt-in img { animation: lt-fade-in .4s ease both !important; transform: none !important; }

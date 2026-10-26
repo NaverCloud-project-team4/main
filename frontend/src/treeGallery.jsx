@@ -9,10 +9,12 @@ const STAGES = { sprout: '새싹', sapling: '묘목', young: '어린나무', gro
 const UNLOCK = { sprout: ['background', 'ground'], sapling: ['branch-1', 'branch-2'], young: ['branch-3', 'branch-4'], grown: ['topper'] };
 const SAMPLE = {
   maple: { background: 'bg-autumn-dusk', ground: 'leaf-pile', 'branch-1': 'cheongsachorong', 'branch-2': 'maple-mobile', 'branch-3': 'gotgam', 'branch-4': 'fairy-lights', topper: 'bird' },
-  ginkgo: { background: 'bg-hanji', ground: 'squirrel', 'branch-1': 'cheongsachorong', 'branch-2': 'fairy-lights', 'branch-3': 'gotgam', 'branch-4': 'cheongsachorong', topper: 'star' },
+  ginkgo: { background: 'bg-summer-night', ground: 'squirrel', 'branch-1': 'cheongsachorong', 'branch-2': 'fairy-lights', 'branch-3': 'gotgam', 'branch-4': 'cheongsachorong', topper: 'star' },
   cherry: { background: 'bg-spring-river', ground: 'bench', 'branch-1': 'cherry-ribbon', 'branch-2': 'fairy-lights', 'branch-3': 'cherry-ribbon', 'branch-4': 'fairy-lights', topper: 'ribbon' },
   xmas: { background: 'bg-snow-night', ground: 'snowman', 'branch-1': 'ornament', 'branch-2': 'fairy-lights', 'branch-3': 'ornament', 'branch-4': 'ornament', topper: 'star' },
 };
+
+const EFFECT_OF = { 'bg-autumn-dusk': 'leaves', 'bg-snow-night': 'snow', 'bg-spring-river': 'petals', 'bg-summer-night': 'fireflies' };
 
 // Same shape as GET /api/me/tree slots.
 function sampleSlots(species, stage, decorate) {
@@ -31,7 +33,7 @@ function Gallery() {
   return <main className="tg">
     <h1>나무 갤러리 <small>개발용 · 임시 에셋</small></h1>
     <section className="tg-hero">
-      <LayeredTree species={species} stage={stage} slots={sampleSlots(species, stage, decorate)} label={`${SPECIES[species]} ${STAGES[stage]}`}/>
+      <LayeredTree species={species} stage={stage} slots={sampleSlots(species, stage, decorate)} effect={decorate ? EFFECT_OF[SAMPLE[species].background] : null} label={`${SPECIES[species]} ${STAGES[stage]}`}/>
       <div className="tg-controls">
         <div>{Object.entries(SPECIES).map(([k, v]) => <button key={k} aria-pressed={species === k} onClick={() => setSpecies(k)}>{v}</button>)}</div>
         <div>{Object.entries(STAGES).map(([k, v]) => <button key={k} aria-pressed={stage === k} onClick={() => setStage(k)}>{v}</button>)}</div>

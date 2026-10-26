@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
-import { buildParticles, buildScene, DEPTH, itemBox, parallax, particleSprite, shadowBox, tiltFromOrientation, turn } from '../frontend/src/lib/treeScene.js';
+import { buildEffect, buildParticles, buildScene, changedItems, DEPTH, EFFECTS, itemBox, parallax, particleSprite, shadowBox, tiltFromOrientation, turn } from '../frontend/src/lib/treeScene.js';
 import { TREE_ASSETS, TREE_PARTS } from '../frontend/src/lib/treeAssets.js';
 
 const anchors = JSON.parse(readFileSync(new URL('../frontend/src/lib/treeAnchors.json', import.meta.url), 'utf8'));
@@ -163,4 +163,30 @@ test('litter lies before the ground props, falling leaves are the front-most lay
   assert.ok(!buildScene(anchors, 'maple', 'sprout', [], stages).some(l => l.key === 'falling' || l.key === 'litter'));
   const widths = STAGES.map(stage => shadowBox(anchors, stages, stage).width);
   assert.ok(ascending(widths));
+});
+
+// ---------- step 4: background effects and the equip pop ----------
+test('background effects: right sprite and count, deterministic, behind the tree', () => {
+  for (const [effect, spec] of Object.entries(EFFECTS)) {
+    const particles = buildEffect(effect);
+    assert.equal(particles.length, spec.count, effect);
+    assert.ok(particles.every(p => p.src === TREE_ASSETS.fx(spec.sprite) && p.mode === spec.mode));
+    assert.deepEqual(buildEffect(effect), particles, `${effect} is deterministic`);
+    if (spec.mode === 'fall') assert.ok(particles.every(p => p.top < 0 && p.top + p.dy > 100), `${effect} crosses the whole tree`);
+    else assert.ok(particles.every(p => p.top > 20 && p.top < 95), 'fireflies float inside the scene');
+  }
+  assert.deepEqual(buildEffect(null), []);
+  assert.deepEqual(buildEffect('rainbow'), []);
+  const order = buildScene(anchors, 'xmas', 'grown', all(), stages, 'snow').map(l => l.key);
+  assert.equal(order[1], 'effect', 'right after the background');
+  assert.ok(order.indexOf('effect') < order.indexOf('back'));
+  assert.ok(!buildScene(anchors, 'xmas', 'grown', all(), stages, null).some(l => l.key === 'effect'));
+});
+
+test('only newly hung or swapped decorations pop, never on the first render', () => {
+  const before = new Map([['branch-1', 'fairy-lights'], ['ground', 'bench']]);
+  assert.deepEqual([...changedItems(null, before)], []);
+  const after = new Map([['branch-1', 'fairy-lights'], ['ground', 'snowman'], ['branch-2', 'fairy-lights']]);
+  assert.deepEqual([...changedItems(before, after)].sort(), ['branch-2', 'ground']);
+  assert.deepEqual([...changedItems(after, new Map([['branch-1', 'fairy-lights']]))], [], 'taking things off does not pop');
 });

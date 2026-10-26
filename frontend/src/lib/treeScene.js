@@ -9,7 +9,7 @@ export const STAGE_ORDER = Object.freeze(['sprout', 'sapling', 'young', 'grown']
 export const DEPTH = Object.freeze({
   background: 0.15, back: 0.5, trunk: 0.65, mid: 0.72, front: 0.85, branchFront: 0.9, topper: 0.95, ground: 0.8, shadow: 0.8,
 });
-export const PARTICLE_DEPTH = Object.freeze({ litter: 0.82, falling: 1 });
+export const PARTICLE_DEPTH = Object.freeze({ litter: 0.82, falling: 1, effect: 0.25 });
 export const MAX_SHIFT = 14; // px at depth 1 for a full tilt
 export const MAX_TURN = { y: 6, x: 4 }; // degrees for a full tilt
 
@@ -79,6 +79,42 @@ export function buildParticles(anchors, stages, species, stage) {
   return { falling, litter };
 }
 
+// Background effects that come with a background item: [sprite, count, mode]. "fall" drifts from the top
+// to past the bottom; "wander" floats in place (fireflies). Counts are kept low for phones.
+export const EFFECTS = Object.freeze({
+  leaves: { sprite: 'leaf', count: 10, mode: 'fall', size: [2.4, 3.6], duration: [9, 14] },
+  snow: { sprite: 'snow', count: 26, mode: 'fall', size: [1.2, 2.6], duration: [10, 16] },
+  petals: { sprite: 'petal', count: 16, mode: 'fall', size: [1.8, 2.8], duration: [9, 13] },
+  fireflies: { sprite: 'firefly', count: 12, mode: 'wander', size: [1.6, 2.6], duration: [6, 10] },
+});
+
+/** Particles for a background effect (null → none). Positions are % of the tree canvas; deterministic. */
+export function buildEffect(effect) {
+  const spec = EFFECTS[effect];
+  if (!spec) return [];
+  const rand = seededRandom(`effect:${effect}`);
+  const between = ([a, b]) => a + (b - a) * rand();
+  return Array.from({ length: spec.count }, (_, i) => {
+    const size = +between(spec.size).toFixed(2);
+    const wander = spec.mode === 'wander';
+    return {
+      key: `${effect}-${i}`, mode: spec.mode, src: TREE_ASSETS.fx(spec.sprite), size,
+      left: +(rand() * 100 - size / 2).toFixed(2),
+      top: +(wander ? 25 + rand() * 65 : -8 - rand() * 4).toFixed(2),
+      dx: +((rand() - 0.5) * (wander ? 14 : 30)).toFixed(2),
+      dy: +(wander ? (rand() - 0.5) * 10 : 112 + rand() * 6).toFixed(2),
+      spin: Math.round(effect === 'snow' ? 90 : 160 + rand() * 300),
+      duration: +between(spec.duration).toFixed(2), delay: +(-rand() * spec.duration[1]).toFixed(2),
+    };
+  });
+}
+
+/** Slots whose shown item changed since the last render (newly hung or swapped) → they get the "pop" animation. */
+export function changedItems(previous, next) {
+  if (!previous) return new Set(); // first render: nothing pops
+  return new Set([...next].filter(([slot, itemId]) => itemId && previous.get(slot) !== itemId).map(([slot]) => slot));
+}
+
 /** Contact shadow box (% of canvas), scaled by the stage. */
 export function shadowBox(anchors, stages, stage) {
   const scale = stages?.stages[stage]?.shadowScale ?? 1;
@@ -93,7 +129,7 @@ export function shadowBox(anchors, stages, stage) {
  * Locked, empty and hidden (doesn't fit this species) slots are skipped; a missing background falls back to hanji.
  * With stage data, ground litter sits just before the ground props and falling leaves go on top, in front of the tree.
  */
-export function buildScene(anchors, species, stage, slots = [], stages = null) {
+export function buildScene(anchors, species, stage, slots = [], stages = null, effect = null) {
   const tree = anchors.trees[species]?.[stage];
   if (!tree) throw new Error(`No anchors for ${species}/${stage}`);
   const shown = new Map(slots.filter(s => s.unlocked && s.visible && s.item_id).map(s => [s.slot, s.item_id]));
@@ -106,6 +142,8 @@ export function buildScene(anchors, species, stage, slots = [], stages = null) {
   const particles = stages ? buildParticles(anchors, stages, species, stage) : { falling: [], litter: [] };
   return [
     { key: 'background', kind: 'background', depth: DEPTH.background, itemId: background, src: TREE_ASSETS.background(background) },
+    // The background's own effect (snow, petals…) drifts behind the tree, as part of the scenery.
+    ...(effect && EFFECTS[effect] ? [{ key: 'effect', kind: 'effect', depth: PARTICLE_DEPTH.effect, effect, particles: buildEffect(effect) }] : []),
     part('back', DEPTH.back),
     part('trunk', DEPTH.trunk),
     ...branches.filter(slot => tree.slots[slot].layer === 'mid').map(slot => item(slot, DEPTH.mid, 'branch')),
