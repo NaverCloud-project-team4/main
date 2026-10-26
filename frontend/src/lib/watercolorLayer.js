@@ -1,7 +1,7 @@
 import { INK, RIVER, PAPER_COLOR, paperOpacity, washFor, labelSize } from './watercolorPalette.js';
 import { insideCity } from './seoulViewport.js';
 import { createTreeLayer } from './treeLayer.js';
-import { createPopupLayer } from './popupLayer.js';
+import { createPopupLayer, SPOT_FOCUS_ZOOM } from './popupLayer.js';
 
 // ---------- Pure SVG building (tested with node --test) ----------
 
@@ -109,7 +109,7 @@ const MOVE_EVENTS = ['bounds_changed', 'center_changed', 'zoom_changed', 'zoomin
  * The wash is rasterized once per zoom level; while dragging or zooming only CSS
  * transforms change, so the SVG filters never run per frame.
  */
-export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, grainUrl, treeAssets, onSelect, onSpotSelect, onEmptyClick, onGrowth }) {
+export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, grainUrl, treeAssets, onSelect, onSpotSelect, onEmptyClick, onGrowth, moveTo }) {
   const root = document.createElement('div');
   root.className = 'wc-stage';
   root.setAttribute('aria-hidden', 'false');
@@ -137,7 +137,7 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
   popups.className = 'wc-popups';
   const labels = document.createElement('div');
   labels.className = 'wc-labels';
-  // Ink ring + name for a spot picked in the district sheet.
+  // Spreading ink rings on a spot picked in the sheet (its tree carries the name).
   const spotMark = document.createElement('div');
   spotMark.className = 'wc-spot-mark';
   spotMark.hidden = true;
@@ -145,12 +145,12 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
   root.append(paper, world, trees, popups, spotMark, labels);
 
   const districts = boundaries.features.map(f => ({ id: f.properties.zone_id, name: f.properties.name, geometry: f.geometry, hit: hitPolygons(f.geometry) }));
-  const forest = createTreeLayer({ container: trees, districts, assets: treeAssets, onSelect });
-  const popupBook = createPopupLayer({ container: popups, assets: treeAssets, onSelect: spot => onSpotSelect?.(spot) });
+  const forest = createTreeLayer({ container: trees, districts, assets: treeAssets });
+  const popupBook = createPopupLayer({ container: popups, assets: treeAssets });
   const compact = () => map.getElement().clientWidth < 500;
   const anchor = new maps.LatLng(37.5665, 126.978);
   const overlay = new maps.OverlayView();
-  const state = { zones: new Map(), selected: null, spot: null, raster: null, token: 0, stageKey: '', movingUntil: 0, frame: null, labelZoom: null, destroyed: false };
+  const state = { zones: new Map(), selected: null, spot: null, arriving: null, raster: null, token: 0, stageKey: '', movingUntil: 0, frame: null, labelZoom: null, destroyed: false };
   const labelEls = new Map();
   let listeners = [];
   let highTimer = null;
@@ -171,6 +171,7 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
     if (state.destroyed || !overlay.getMap()) return;
     const o = offsets();
     const zoom = map.getZoom();
+    root.dataset.zoom = String(zoom); // read by scripts/map-sheet.e2e.cjs
     paper.style.opacity = String(paperOpacity(zoom));
     const a = toScreen(anchor, o);
     paper.style.backgroundPosition = `${a.x.toFixed(1)}px ${a.y.toFixed(1)}px`;
@@ -186,8 +187,6 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
     if (state.spot) {
       const p = toScreen(new maps.LatLng(state.spot.latitude, state.spot.longitude), o);
       spotMark.style.transform = `translate(${p.x.toFixed(1)}px, ${p.y.toFixed(1)}px)`;
-      // The pop-up tree already carries the name; keep only the ink ring then.
-      spotMark.classList.toggle('wc-spot-mark--ring', popupBook.states().get(state.spot.id) === 'up');
     }
     for (const [id, el] of labelEls) {
       const zone = state.zones.get(id);
@@ -316,18 +315,70 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
     state.labelZoom = map.getZoom();
   }
 
+  // Landed on the picked spot: its tree rises again and the rings spread.
+  // An idle from before the flight does not count: wait for the target zoom.
+  function arrive() {
+    const target = state.arriving;
+    if (!target || state.spot?.id !== target.id || Math.abs(map.getZoom() - target.zoom) >= 0.05) return;
+    state.arriving = null;
+    clearTimeout(target.timer);
+    popupBook.replay(target.id);
+    spotMark.classList.remove('wc-spot-mark--pulse');
+    void spotMark.offsetWidth;
+    spotMark.classList.add('wc-spot-mark--pulse');
+    root.dataset.spotArrived = String(target.id);
+  }
+
+  // Everything drawn here ignores the pointer, so wheel, drag and pinch over trees and
+  // labels reach NAVER (which only listens on its own canvas). A map click is matched
+  // to what is drawn under it, topmost first: labels, spot trees, interest trees.
+  const within = (el, x, y) => {
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+  };
+  function hitAt(x, y) {
+    const label = [...labels.children].find(el => within(el, x, y));
+    if (label) return { zone: label.dataset.zoneId };
+    const spot = [...popups.querySelectorAll('.wc-pop--up')]
+      .sort((a, b) => Number(b.style.zIndex) - Number(a.style.zIndex))
+      .find(el => within(el.querySelector('.wc-pop-body'), x, y));
+    if (spot) return { spot: popupBook.spot(Number(spot.dataset.spotId)) };
+    const tree = [...trees.querySelectorAll('.wc-tree:not(.wc-tree--leave) .wc-tree-body')].reverse().find(el => within(el, x, y));
+    return tree ? { zone: tree.dataset.zoneId } : null;
+  }
+  function clientPoint(event) {
+    const dom = event.domEvent?.changedTouches?.[0] ?? event.domEvent;
+    if (Number.isFinite(dom?.clientX)) return { x: dom.clientX, y: dom.clientY };
+    const rect = map.getElement().getBoundingClientRect();
+    const p = toScreen(event.coord, offsets());
+    return { x: rect.left + p.x, y: rect.top + p.y };
+  }
+  // Pointer cursor over anything clickable (checked once per frame).
+  let hoverFrame = null;
+  const onHover = event => {
+    if (hoverFrame !== null) return;
+    hoverFrame = requestAnimationFrame(() => {
+      hoverFrame = null;
+      if (event.target instanceof HTMLElement) event.target.style.cursor = hitAt(event.clientX, event.clientY) ? 'pointer' : '';
+    });
+  };
+
   overlay.onAdd = function () {
     map.getElement().appendChild(root);
+    map.getElement().addEventListener('mousemove', onHover, { passive: true });
     listeners = MOVE_EVENTS.map(event => maps.Event.addListener(map, event, () => schedule(450)));
     listeners.push(maps.Event.addListener(map, 'idle', () => {
       schedule(120);
       if (state.labelZoom !== map.getZoom()) renderLabels();
       forest.resize(map.getZoom(), compact());
       refreshRaster();
+      arrive();
     }));
     listeners.push(maps.Event.addListener(map, 'click', event => {
-      // Labels, trees and pop-up trees handle their own clicks; NAVER reports them as map clicks too.
-      if (event.domEvent?.target?.closest?.('.wc-label, .wc-tree-body, .wc-pop-body')) return;
+      const { x, y } = clientPoint(event);
+      const hit = hitAt(x, y);
+      if (hit?.spot) { onSpotSelect?.(hit.spot); return; }
+      if (hit?.zone) { onSelect(hit.zone); return; }
       const coord = event.coord;
       const id = coord && zoneAt(coord.x ?? coord.lng(), coord.y ?? coord.lat(), districts);
       if (id) onSelect(id);
@@ -337,6 +388,9 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
     refreshRaster(true);
   };
   overlay.onRemove = function () {
+    map.getElement().removeEventListener('mousemove', onHover);
+    if (hoverFrame !== null) cancelAnimationFrame(hoverFrame);
+    hoverFrame = null;
     listeners.forEach(listener => maps.Event.removeListener(listener));
     listeners = [];
     if (state.frame !== null) cancelAnimationFrame(state.frame);
@@ -365,19 +419,35 @@ export function createWatercolorStage(maps, map, { boundaries, river, paperUrl, 
     },
     /** Forecast spots for the zoom-in pop-up-book trees. */
     setSpots(spots) { popupBook.setSpots(spots); schedule(); },
-    /** Move and zoom to a forecast spot (zoom 15) and mark it; null clears the mark. */
-    focusSpot(spot) {
+    /**
+     * Fly to a forecast spot and mark it; null clears the mark. offsetY: where the spot
+     * should end up relative to the map centre, in px at the target zoom (negative = higher,
+     * e.g. the middle of the map left visible above a bottom sheet).
+     */
+    focusSpot(spot, { zoom = SPOT_FOCUS_ZOOM, offsetY = 0 } = {}) {
       state.spot = spot;
       spotMark.hidden = !spot;
-      if (!spot) return;
-      spotMark.textContent = spot.name;
-      map.morph(new maps.LatLng(spot.latitude, spot.longitude), Math.max(15, Math.floor(map.getZoom())));
+      popupBook.focus(spot?.id ?? null);
+      delete root.dataset.spotArrived;
+      if (!spot) { clearTimeout(state.arriving?.timer); state.arriving = null; return; }
+      spotMark.textContent = `${spot.name} 위치`;
+      spotMark.classList.remove('wc-spot-mark--pulse');
+      const o = offsets();
+      const p = toScreen(new maps.LatLng(spot.latitude, spot.longitude), o);
+      // Screen offsets scale by 2^Δzoom; the projection is linear at a fixed zoom.
+      const center = toCoord(p.x, p.y - offsetY * 2 ** (map.getZoom() - zoom), o);
+      clearTimeout(state.arriving?.timer);
+      // Already there (no movement, so no idle): arrive after the would-be flight.
+      state.arriving = { id: spot.id, zoom, timer: setTimeout(arrive, 2600) };
+      if (moveTo) moveTo(center, zoom);
+      else map.morph(center, zoom);
       schedule(1500);
     },
     resize() { renderLabels(); forest.resize(map.getZoom(), compact()); refreshRaster(true); schedule(); },
     destroy() {
       state.destroyed = true;
       clearTimeout(highTimer);
+      clearTimeout(state.arriving?.timer);
       overlay.setMap(null);
     },
   };

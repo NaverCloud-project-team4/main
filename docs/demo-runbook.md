@@ -89,6 +89,7 @@ NCP Object Storage를 쓰는 서버면 `STORAGE_BACKEND=s3`와 버킷·키 환�
 - [ ] `/api/zones`: 인기 구는 `source: REPORT`, 단계는 명소 예측 단계와 같다. 나머지는 `FORECAST`
 - [ ] 지도: 인기 구에 숲, 관심도 1 구에 작은 나무, 나머지는 예측 색
 - [ ] 인기 구 시트 → [대표 명소] 맨 위에 "요즘 인기" 명소, "최근 제보 N건"
+- [ ] 지도·시트 동시 동작 자동 점검(서버 실행 중, playwright 필요): `node scripts/map-sheet.e2e.cjs` → `PASS desktop`, `PASS mobile` (스크린샷은 `artifacts/`)
 - [ ] [사용자 게시물]에 시연 사진이 보인다
 - [ ] 데모 계정(`demo@example.com` / `DemoPass123!`) → 나만의 나무가 큰나무, 잔액으로 아이템 구매 가능
 - [ ] 부하 테스트 공략 구가 관심도 1에서 시작한다

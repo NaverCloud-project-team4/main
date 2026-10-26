@@ -34,7 +34,7 @@ function SpotList({ zoneId, onFocus }) {
   }, [zoneId]);
   if (error) return <p className="wc-sheet-empty" role="alert">명소를 불러오지 못했어요. {error}</p>;
   if (!spots) return <p className="wc-sheet-empty" role="status">명소를 불러오고 있어요.</p>;
-  if (!spots.length) return <p className="wc-sheet-empty">이 구에는 등록된 대표 명소가 아직 없어요.</p>;
+  if (!spots.length) return <p className="wc-sheet-empty">지금은 추천 명소가 없어요. 이 구에는 아직 산림청 예측 명소가 등록되지 않았어요.</p>;
   // Spots with the most recent reports nearby come first; the top one gets "요즘 인기".
   const ranked = [...spots].sort((a, b) => (b.recent_reports ?? 0) - (a.recent_reports ?? 0));
   return <ul className="wc-spot-list">{ranked.map((spot, i) => <li key={spot.id}>

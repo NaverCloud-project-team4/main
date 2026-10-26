@@ -28,6 +28,7 @@ function App() {
   const [active, setActive] = useState(null), [busy, setBusy] = useState(false), [logs, setLogs] = useState([]);
   const [sheet, dispatchSheet] = useReducer(sheetReducer, initialSheet), [spotFocus, setSpotFocus] = useState(null);
   // Selecting a district (map, label, tree or chip) also opens the watercolor sheet's preview.
+  // A picked spot is copied so picking the same one again flies there again.
   const selectZone = id => { setSelected(id); setSpotFocus(null); dispatchSheet({ type: 'select' }); };
   const closeSheet = () => { dispatchSheet({ type: 'close' }); setSpotFocus(null); };
   const zone = zones.find(z => z.id === selected);
@@ -119,8 +120,8 @@ function App() {
     {tab === 'map' && <div className="stats"><Stat icon="camera" label="최근 7일 제보" value={zones.reduce((n, z) => n + z.report_count, 0)} unit="건"/><Stat icon="map" label="서울 자치구" value={zones.length} unit="개"/><Stat icon="heart" label="모인 좋아요" value={zones.reduce((n, z) => n + z.like_count, 0)} unit="개"/></div>}
     {active && <div className={`verification ${active.status.toLowerCase()}`}><span className="verification-icon">{pending(active.status) ? '◌' : active.status === 'APPROVED' ? '✓' : '!'}</span><div><b>{statuses[active.status]}</b><p>{active.reason || '검증 작업을 기다리고 있어요. 결과가 자동으로 갱신돼요.'}</p></div><button className="text-button" onClick={() => { setTab('profile'); }}>내 제보 보기 →</button></div>}
     {tab === 'map' && <div className="map-page"><div className="panel map-panel"><div className="panel-heading"><div><h2>서울의 단풍 지도</h2><p className="subtle">관심이 모인 구에는 단풍나무가 자라요</p></div><span className="map-count">{zones.length}개 구</span></div>{MAP_THEME === 'watercolor'
-        ? <Suspense fallback={<div className="zone-map naver-zone-map" data-map-status="loading" />}><WatercolorZoneMap zones={zones} selected={selected} onSelect={selectZone} onSpotSelect={spot => { selectZone(spot.zone_id); setSpotFocus(spot); }} onEmptyClick={closeSheet} focusSpot={spotFocus}>
-          <Suspense fallback={null}><ZoneSheet zone={zone} sheet={sheet} dispatch={dispatchSheet} token={token} like={like} onReport={() => setTab('report')} onSpotFocus={setSpotFocus}/></Suspense>
+        ? <Suspense fallback={<div className="zone-map naver-zone-map" data-map-status="loading" />}><WatercolorZoneMap zones={zones} selected={selected} onSelect={selectZone} onSpotSelect={spot => { selectZone(spot.zone_id); dispatchSheet({ type: 'collapse' }); setSpotFocus({ ...spot }); }} onEmptyClick={closeSheet} focusSpot={spotFocus} sheetMode={sheet.mode}>
+          <Suspense fallback={null}><ZoneSheet zone={zone} sheet={sheet} dispatch={dispatchSheet} token={token} like={like} onReport={() => setTab('report')} onSpotFocus={spot => setSpotFocus({ ...spot })}/></Suspense>
         </WatercolorZoneMap></Suspense>
         : <NaverZoneMap zones={zones} selected={selected} onSelect={setSelected} />}
       {MAP_THEME === 'classic' && <div className="zone-detail"><span className="zone-detail-icon" aria-hidden="true">🍂</span><div className="zone-detail-copy"><span className="stage-label">{stages[zone?.stage] || '제보 기다리는 중'}{zone?.source === 'FORECAST' ? ' · 예측 기반' : zone?.source === 'REPORT' ? ' · 제보 기반' : ''}</span><h3>{zone?.name || '자치구 불러오는 중'}</h3><p>최근 제보 {zone?.report_count || 0}건 · 좋아요 {zone?.like_count || 0}개</p></div><div className="zone-detail-actions"><button className="button secondary" onClick={() => { setFilter(selected); setPage(1); setTab('feed'); }}>이 구의 제보 <Icon name="chevron" size={16}/></button><button className="button" onClick={() => setTab('report')}><Icon name="camera" size={18}/> 현재 위치에서 사진 제보하기</button></div></div>}

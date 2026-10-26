@@ -19,8 +19,29 @@ export const MAP_ASSETS = Object.freeze({
   ginkgoLeaves: ['/map-assets/leaf-ginkgo-1.png', '/map-assets/leaf-ginkgo-2.png'],
 });
 const STYLE_ID = (import.meta.env.VITE_NAVER_MAP_STYLE_ID_WATERCOLOR || '').trim() || NAVER_MAP_STYLE_ID;
+
+// Screen y of the sheet's top edge once it settles in `mode` (it may still be sliding):
+// the untransformed box plus the mode's resting offset. null while closed.
+function sheetTop(frame, mode) {
+  const el = frame?.querySelector('.wc-sheet');
+  if (!el || mode === 'closed') return null;
+  const style = getComputedStyle(el);
+  const box = el.getBoundingClientRect();
+  const top = box.top - (style.transform === 'none' ? 0 : new DOMMatrixReadOnly(style.transform).m42);
+  return mode === 'full' ? top : top + box.height - (parseFloat(style.getPropertyValue('--wc-peek')) || 0);
+}
+
+// The map area a person can see: inside the window and above the sheet.
+function visibleBand(frame, mode) {
+  const map = frame.getBoundingClientRect();
+  const cover = sheetTop(frame, mode);
+  const top = Math.max(map.top, 0);
+  const bottom = Math.min(map.bottom, window.innerHeight, cover ?? Infinity);
+  return { map, top, bottom: Math.max(bottom, top + 40), inset: cover == null ? 0 : Math.max(0, map.bottom - cover) };
+}
 // children: the district sheet, rendered inside the map frame (fixed to the screen on phones).
-export default function WatercolorZoneMap({ zones, selected, onSelect, onSpotSelect, onEmptyClick, focusSpot, children }) {
+export default function WatercolorZoneMap({ zones, selected, onSelect, onSpotSelect, onEmptyClick, focusSpot, sheetMode = 'closed', children }) {
+  const frameRef = useRef(null);
   const canvasRef = useRef(null);
   const stageRef = useRef(null);
   const viewportRef = useRef(null);
@@ -47,9 +68,9 @@ export default function WatercolorZoneMap({ zones, selected, onSelect, onSpotSel
         gl: true, customStyleId: STYLE_ID,
         center: new maps.LatLng(37.565, 126.98), zoom: 11,
         minZoom: 9, maxZoom: 18, disableKineticPan: true,
-        // The small +/− control keeps phone-width maps uncovered.
-        zoomControl: true, zoomControlOptions: { position: maps.Position.RIGHT_CENTER, style: maps.ZoomControlStyle.SMALL },
-        scaleControl: false, logoControl: true, mapDataControl: false, scrollWheel: false,
+        // The small +/− control sits top-right, above any open sheet; the wheel zooms too.
+        zoomControl: true, zoomControlOptions: { position: maps.Position.TOP_RIGHT, style: maps.ZoomControlStyle.SMALL },
+        scaleControl: false, logoControl: true, mapDataControl: false, scrollWheel: true,
       });
       await waitForNaverMapInit(maps, map, controller.signal);
       if (disposed) return;
@@ -60,6 +81,7 @@ export default function WatercolorZoneMap({ zones, selected, onSelect, onSpotSel
         onSelect: id => latest.current.onSelect(id),
         onSpotSelect: spot => latest.current.onSpotSelect?.(spot),
         onEmptyClick: () => latest.current.onEmptyClick?.(),
+        moveTo: (coord, zoom) => viewport.flyTo(coord, zoom),
       });
       stageRef.current = stage;
       stage.update(latest.current);
@@ -92,12 +114,22 @@ export default function WatercolorZoneMap({ zones, selected, onSelect, onSpotSel
     if (status === 'ready') stageRef.current?.update({ zones, selected });
   }, [zones, selected, status]);
 
+  // The sheet hides the bottom of the map: let the limits use only the part above it.
   useEffect(() => {
-    if (status === 'ready') stageRef.current?.focusSpot(focusSpot || null);
-  }, [focusSpot, status]);
+    if (status === 'ready' && frameRef.current) viewportRef.current?.setInset(visibleBand(frameRef.current, sheetMode).inset);
+  }, [sheetMode, status]);
+
+  // A picked spot lands in the middle of the map left visible above the sheet.
+  useEffect(() => {
+    if (status !== 'ready' || !frameRef.current) return;
+    if (!focusSpot) { stageRef.current?.focusSpot(null); return; }
+    const band = visibleBand(frameRef.current, sheetMode);
+    const offsetY = (band.top + band.bottom) / 2 - (band.map.top + band.map.height / 2);
+    stageRef.current?.focusSpot(focusSpot, { offsetY });
+  }, [focusSpot, status]); // the sheet mode is only read at focus time
 
   return <>
-    <div className="zone-map naver-zone-map wc-map" data-map-status={status} data-map-theme="watercolor">
+    <div ref={frameRef} className="zone-map naver-zone-map wc-map" data-map-status={status} data-map-theme="watercolor">
       <div ref={canvasRef} className="naver-map-canvas" role="region" aria-label="수채화 서울 지도 · 25개 자치구 단풍 단계" />
       {status === 'ready' && <div className="naver-map-toolbar wc-toolbar"><span>구를 눌러 단풍 소식 보기</span><button type="button" onClick={() => viewportRef.current?.fit()}>서울 전체 보기</button></div>}
       {status === 'loading' && <div className="naver-map-message wc-message" role="status"><span className="map-loading-ring"/><strong>서울의 단풍 지도를 그리고 있어요.</strong></div>}

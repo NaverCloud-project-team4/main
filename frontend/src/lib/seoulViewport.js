@@ -12,6 +12,18 @@ export function centreLimits(city, view) {
   return { minX, maxX, minY, maxY };
 }
 
+/**
+ * The part of the view above a bottom sheet that covers `inset` of `height` px.
+ * north: +1 if projected y grows northwards. shift moves the map centre to the
+ * centre of the uncovered part (add it before clamping, subtract it after).
+ * At most 80% counts as covered, so the limits never collapse to nothing.
+ */
+export function coveredView(view, inset, height, north = 1) {
+  const cut = height > 0 ? (view.maxY - view.minY) * Math.min(0.8, Math.max(0, inset) / height) : 0;
+  const seen = north > 0 ? { ...view, minY: view.minY + cut } : { ...view, maxY: view.maxY - cut };
+  return { shift: north * cut / 2, seen };
+}
+
 function onSegment(point, a, b) {
   const cross = (point.x - a.x) * (b.y - a.y) - (point.y - a.y) * (b.x - a.x);
   const length = Math.hypot(b.x - a.x, b.y - a.y);
@@ -82,16 +94,27 @@ export function installSeoulViewport(maps, map, boundaries) {
   const geometry = boundaries.city_geometry;
   const polygons = (geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates)
     .map(rings => rings.map(ring => ring.map(([lng, lat]) => projection.fromCoordToPoint(new maps.LatLng(lat, lng)))));
-  let busy = false, lastDraggable = null;
+  // +1 when the projection's y grows northwards (the bottom of the screen is minY).
+  const northUp = Math.sign(projection.fromCoordToPoint(bounds.getNE()).y - projection.fromCoordToPoint(bounds.getSW()).y) || 1;
+  let busy = false, lastDraggable = null, inset = 0, flight = null;
+  // setCenter or setOptions while NAVER animates a zoom (wheel, pinch, +/− or morph)
+  // cancels the animation, so this runs while dragging and once the map settles,
+  // never on bounds_changed/zoom_changed.
   const enforce = () => {
-    if (busy) return;
+    // A programmatic flight passes through zooms whose limits would snap the centre
+    // back (and cancel the animation); it is checked once it lands instead.
+    if (busy || flight) return;
     busy = true;
     try {
       const visible = map.getBounds();
       const view = pointBounds(projection.fromCoordToPoint(visible.getSW()), projection.fromCoordToPoint(visible.getNE()));
-      const limits = centreLimits(city, view);
+      // A bottom sheet covers `inset` px: limit the uncovered part, so districts under
+      // the sheet can still be dragged up into view.
+      const { shift, seen } = coveredView(view, inset, map.getSize().height, northUp);
+      const limits = centreLimits(city, seen);
       const current = projection.fromCoordToPoint(map.getCenter());
-      const next = clampSeoulCentre(current, limits, polygons);
+      const fixed = clampSeoulCentre({ x: current.x, y: current.y + shift }, limits, polygons);
+      const next = { x: fixed.x, y: fixed.y - shift };
       const draggable = limits.maxX > limits.minX || limits.maxY > limits.minY;
       if (draggable !== lastDraggable) {
         lastDraggable = draggable;
@@ -103,7 +126,14 @@ export function installSeoulViewport(maps, map, boundaries) {
       }
     } finally { busy = false; }
   };
-  const listeners = ['bounds_changed', 'zoom_changed', 'size_changed', 'dragend', 'idle']
+  const land = () => {
+    if (!flight) return;
+    clearTimeout(flight.timer);
+    maps.Event.removeListener(flight.idle);
+    flight = null;
+    enforce();
+  };
+  const listeners = ['drag', 'size_changed', 'dragend', 'idle']
     .map(event => maps.Event.addListener(map, event, enforce));
   return {
     fit() {
@@ -136,6 +166,30 @@ export function installSeoulViewport(maps, map, boundaries) {
       map.setCenter(new maps.LatLng(latitude, longitude));
       enforce();
     },
-    destroy() { listeners.forEach(listener => maps.Event.removeListener(listener)); },
+    /** Smooth move + zoom (map.morph) that the Seoul limits do not interrupt mid-way. */
+    flyTo(coord, zoom) {
+      land();
+      flight = { idle: null, timer: null };
+      map.morph(coord, zoom);
+      // NAVER fires idle once the morph settles; the timer covers an animation that never starts.
+      const current = flight;
+      setTimeout(() => {
+        if (flight !== current) return;
+        current.idle = maps.Event.addListener(map, 'idle', land);
+        current.timer = setTimeout(land, 2500);
+      }, 0);
+    },
+    /** Pixels at the bottom of the map hidden by a sheet (0 when closed). */
+    setInset(px) {
+      const next = Math.max(0, Math.round(px) || 0);
+      if (next === inset) return;
+      inset = next;
+      lastDraggable = null;
+      enforce();
+    },
+    destroy() {
+      land();
+      listeners.forEach(listener => maps.Event.removeListener(listener));
+    },
   };
 }

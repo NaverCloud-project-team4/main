@@ -23,10 +23,10 @@
   font-family: var(--wc-brush); font-weight: 400; line-height: 1;
   color: var(--wc-ink); letter-spacing: .5px; white-space: nowrap;
   text-shadow: 0 0 3px #f3ecdcd9, 0 0 1px #f3ecdc;
-  pointer-events: auto; cursor: pointer;
+  /* The whole stage ignores the pointer (wheel/drag/pinch must reach the map); clicks are hit-tested. */
+  pointer-events: none;
   transition: font-size .2s ease, color .2s ease;
 }
-.wc-label:hover { color: #000; }
 .wc-label.selected { color: #000; text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; text-decoration-color: #3b2f2566; }
 .wc-label:focus-visible { outline: 2px solid var(--wc-ink-soft); outline-offset: 2px; border-radius: 4px; }
 
@@ -36,7 +36,6 @@
 .wc-tree-body {
   position: absolute; left: 0; top: 0;
   transform-origin: 50% 94%;
-  pointer-events: auto; cursor: pointer;
   transition: width .6s cubic-bezier(.34, 1.56, .64, 1), height .6s cubic-bezier(.34, 1.56, .64, 1),
     margin .6s cubic-bezier(.34, 1.56, .64, 1);
 }
@@ -44,7 +43,7 @@
 .wc-tree-shadow { position: absolute; left: 5%; top: 85%; width: 90%; opacity: .8; }
 .wc-trees--instant .wc-tree-body { transition: none; }
 .wc-tree--enter .wc-tree-body { animation: wc-tree-grow .7s cubic-bezier(.34, 1.56, .64, 1) var(--wc-delay, 0ms) both; }
-.wc-tree--leave .wc-tree-body { animation: wc-tree-fade .35s ease forwards; pointer-events: none; }
+.wc-tree--leave .wc-tree-body { animation: wc-tree-fade .35s ease forwards; }
 .wc-leaf img { position: absolute; left: 0; top: 0; opacity: .9; }
 .wc-leaf--enter img { animation: wc-fade-in .6s ease .4s both; }
 @keyframes wc-tree-grow { from { transform: scale(0); opacity: 0; } 25% { opacity: 1; } to { transform: scale(1); opacity: 1; } }
@@ -53,15 +52,14 @@
 .wc-legend .legend-trees { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .wc-legend .legend-trees img { width: 16px; height: 20px; object-fit: contain; }
 
-/* Pop-up-book spot trees (zoom 14+): each rises from the page around its trunk base. */
+/* Forecast-spot trees at their exact coordinates: each rises from the page around its trunk base. */
 .wc-popups { position: absolute; inset: 0; }
 .wc-pop { position: absolute; left: 0; top: 0; width: 0; height: 0; perspective: 600px; }
 .wc-pop--down { visibility: hidden; }
 .wc-pop-body {
   position: absolute; left: 0; top: 0; padding: 0; border: 0; background: transparent;
-  transform-origin: 50% 94%; backface-visibility: hidden; cursor: pointer; pointer-events: auto;
+  transform-origin: 50% 94%; backface-visibility: hidden;
 }
-.wc-pop--down .wc-pop-body { pointer-events: none; }
 .wc-pop-body .wc-tree-img { filter: saturate(.95) drop-shadow(0 3px 2px #3b2f2540); }
 .wc-pop-name {
   position: absolute; left: 50%; top: 96%; transform: translateX(-50%);
@@ -69,9 +67,13 @@
   text-shadow: 0 0 3px #f3ecdc, 0 0 6px #f3ecdc;
 }
 .wc-pop--up .wc-pop-body { animation: wc-pop-rise .52s cubic-bezier(.34, 1.56, .64, 1) var(--wc-delay, 0ms) both; }
-.wc-pop--fold .wc-pop-body { animation: wc-pop-fold .38s cubic-bezier(.55, 0, .75, .2) both; }
 @keyframes wc-pop-rise { from { transform: rotateX(90deg); opacity: 0; } 15% { opacity: 1; } to { transform: rotateX(0deg); opacity: 1; } }
-@keyframes wc-pop-fold { from { transform: rotateX(0deg); opacity: 1; } 85% { opacity: 1; } to { transform: rotateX(90deg); opacity: 0; } }
+/* The exact spot: a small ink dot under the trunk foot. */
+.wc-pop-foot { position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: #3b2f25; box-shadow: 0 0 0 2px #f3ecdccc; }
+.wc-pop--down .wc-pop-foot { visibility: hidden; }
+/* Names from zoom 14, and always on the picked spot. */
+.wc-popups[data-names='off'] .wc-pop:not(.wc-pop--focus) .wc-pop-name { display: none; }
+.wc-pop--focus .wc-pop-name { font-size: 24px; padding: 2px 8px; border-radius: 8px; background: #fbf7ecee; box-shadow: 0 1px 0 #5b4a3a33; }
 
 /* Falling leaves: a slow swaying loop from level-3 forests, and a one-off burst when a forest grows. */
 .wc-drift { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
@@ -90,27 +92,27 @@
   100% { opacity: 0; transform: translate(var(--wc-dx), 4px) rotate(var(--wc-spin)); }
 }
 
-/* Spot picked in the sheet: ink ring with its name. */
+/* Spot picked in the sheet: ink rings spread from the point on arrival (the tree carries the name). */
 .wc-spot-mark {
-  position: absolute; left: 0; top: 0; width: 0; height: 0;
-  font-family: 'Nanum Brush Script', cursive; font-size: 22px; line-height: 1; color: #2f241b; white-space: nowrap;
-  pointer-events: none; z-index: 1;
+  position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible;
+  color: transparent; font-size: 1px; white-space: nowrap; pointer-events: none;
 }
-.wc-spot-mark::before {
-  content: ''; position: absolute; left: -17px; top: -17px; width: 34px; height: 34px; border-radius: 50%;
-  border: 2px solid #3b2f25cc; box-shadow: 0 0 0 4px #f3ecdc99; animation: wc-ring 1.6s ease-out 2;
-}
-.wc-spot-mark { text-indent: 24px; text-shadow: 0 0 3px #f3ecdc, 0 0 6px #f3ecdc; }
 .wc-spot-mark[hidden] { display: none; }
-.wc-spot-mark--ring { color: transparent; text-shadow: none; }
-@keyframes wc-ring { from { transform: scale(.4); opacity: 0; } 40% { opacity: 1; } to { transform: scale(1); } }
+.wc-spot-mark::before, .wc-spot-mark::after {
+  content: ''; position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border-radius: 50%;
+  border: 2px solid #3b2f25cc; box-shadow: 0 0 0 3px #f3ecdc80; opacity: 0;
+}
+.wc-spot-mark--pulse::before { animation: wc-ring 1.8s ease-out 3; }
+.wc-spot-mark--pulse::after { animation: wc-ring 1.8s ease-out .6s 3; }
+@keyframes wc-ring { from { transform: scale(.3); opacity: .95; } to { transform: scale(2.2); opacity: 0; } }
 
 /* District bottom sheet (closed → preview → full). Desktop: inside the map frame; phones: fixed above the nav. */
 .wc-sheet {
   --wc-peek: 182px;
   --wc-drag: 0px;
   /* Above NAVER's own controls (z-index 100) so the zoom buttons never float over the sheet. */
-  position: absolute; z-index: 120; left: 12px; right: 12px; bottom: 0; height: calc(100% - 64px);
+  /* Desktop: at most 64% of the map, so the map above stays usable even when full. */
+  position: absolute; z-index: 120; left: 12px; right: 12px; bottom: 0; height: 64%;
   word-break: keep-all;
   display: flex; flex-direction: column;
   background: #f6f0e2 url('/map-assets/paper-texture.webp') 0 0 / 512px 512px;
@@ -190,8 +192,8 @@
   .wc-sheet-actions .wc-report { padding: 9px 11px; }
 }
 
-/* Controls sit above the stage (z-index 1) like NAVER's own controls. */
-.wc-toolbar { z-index: 2; }
+/* Controls sit above the stage (z-index 1) like NAVER's own controls; the right gap leaves room for the +/− control. */
+.wc-toolbar { z-index: 2; right: 58px; }
 .wc-toolbar>span, .wc-toolbar>button {
   background: #fbf7ecee; color: var(--wc-ink-soft);
   box-shadow: 0 1px 0 #5b4a3a33, 0 2px 10px #5b4a3a14;
@@ -205,6 +207,7 @@
 
 @media (max-width: 650px) {
   .wc-toolbar>button { font-size: 14px; padding: 7px 11px; }
+  .wc-toolbar { right: 52px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .wc-paper, .wc-label, .wc-tree-body { transition: none; }
@@ -214,8 +217,8 @@
   .wc-tree--leave .wc-tree-body { animation: wc-fade-in .25s ease reverse forwards !important; }
   .wc-leaf--enter img { animation: none; }
   .wc-sheet, .wc-sheet-panes, .wc-tab-ink { transition: opacity .2s ease; }
-  .wc-spot-mark::before { animation: none; }
+  .wc-spot-mark--pulse::before { animation: none !important; opacity: 1; }
+  .wc-spot-mark--pulse::after { animation: none !important; }
   .wc-pop--up .wc-pop-body { animation: wc-fade-in .25s ease var(--wc-delay, 0ms) both !important; }
-  .wc-pop--fold .wc-pop-body { animation: wc-fade-in .25s ease reverse both !important; }
   .wc-drift { display: none; }
 }

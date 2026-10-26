@@ -12,7 +12,7 @@ const zIndexFor = lat => Math.max(0, Math.round((37.75 - lat) * 20000)); // sout
  * update() diffs the forest against the previous refresh and animates growth;
  * paint() only moves elements (called every frame while the map moves).
  */
-export function createTreeLayer({ container, districts, assets, onSelect }) {
+export function createTreeLayer({ container, districts, assets }) {
   const entities = new Map(); // key → { el, body, img, lng, lat, size, kind, zoneId }
   let sizes = new Map(); // key → size, from the previous update (trees only)
   let first = true;
@@ -24,6 +24,7 @@ export function createTreeLayer({ container, districts, assets, onSelect }) {
     el.dataset.key = key;
     const body = document.createElement('div');
     body.className = 'wc-tree-body';
+    body.dataset.zoneId = zoneId; // clicks are hit-tested by the stage (the layer ignores the pointer)
     const shadow = document.createElement('img');
     shadow.className = 'wc-tree-shadow';
     shadow.src = assets.shadow;
@@ -35,7 +36,6 @@ export function createTreeLayer({ container, districts, assets, onSelect }) {
     body.append(shadow, img);
     el.append(body);
     el.setAttribute('aria-hidden', 'true');
-    body.addEventListener('click', event => { event.stopPropagation(); onSelect(zoneId); });
     container.append(el);
     return { el, body, img };
   }
