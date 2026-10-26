@@ -1,0 +1,59 @@
+/* "나만의 나무" 2.5D layered tree. Scoped to .lt-* so other pages are untouched. */
+.lt-tree { --lt-ink: #5b4a3a; position: relative; width: 100%; max-width: 560px; margin: 0 auto; }
+.lt-viewport {
+  position: relative; width: 100%; aspect-ratio: 1 / 1; perspective: 900px;
+  border-radius: 22px; overflow: hidden; touch-action: pan-y; user-select: none; cursor: grab;
+  box-shadow: 0 1px 0 #5b4a3a33, 0 10px 28px #3b2f2522;
+}
+.lt-viewport:active { cursor: grabbing; }
+/* Slightly larger than the frame so turned/shifted layers never show an edge. */
+/* Turns (and the gallery's fit scaling) pivot on the trunk foot (512, 940 of 1024). */
+.lt-stage { position: absolute; inset: -3%; transform-style: preserve-3d; transform-origin: 50% 91.8%; will-change: transform; }
+.lt-layer { position: absolute; inset: 0; will-change: transform; pointer-events: none; }
+.lt-layer img { display: block; width: 100%; height: 100%; object-fit: contain; -webkit-user-drag: none; }
+.lt-background img { object-fit: cover; }
+.lt-shadow { mix-blend-mode: multiply; opacity: .75; }
+.lt-shadow img { object-fit: fill; }
+
+/* Particles: litter lies around the foot; falling leaves drift down in front of the tree.
+   A falling leaf's layer spans the stage, so translate(%) is measured against the tree canvas. */
+.lt-litter img, .lt-fall img { position: absolute; width: auto; height: auto; }
+.lt-litter img { opacity: .95; }
+.lt-fall { position: absolute; inset: 0; animation: lt-fall var(--dur, 7s) ease-in-out var(--delay, 0s) infinite; }
+.lt-fall img { animation: lt-spin var(--dur, 7s) ease-in-out var(--delay, 0s) infinite; opacity: 0; }
+@keyframes lt-fall {
+  0% { transform: translate(0, -2%); }
+  35% { transform: translate(calc(var(--dx) * .9%), calc(var(--dy) * .38%)); }
+  65% { transform: translate(calc(var(--dx) * .1%), calc(var(--dy) * .7%)); }
+  100% { transform: translate(calc(var(--dx) * 1%), calc(var(--dy) * 1%)); }
+}
+@keyframes lt-spin {
+  0% { opacity: 0; transform: rotate(0deg); }
+  10%, 85% { opacity: .95; }
+  100% { opacity: 0; transform: rotate(var(--spin, 300deg)); }
+}
+
+/* Growing a stage: the old tree fades out while the new one rises from its foot; new litter drops in one by one. */
+.lt-out img { animation: lt-fade-out .7s ease forwards; }
+.lt-in img { transform-origin: 50% 91.8%; animation: lt-grow-in .9s cubic-bezier(.34, 1.4, .64, 1) both; }
+.lt-litter .lt-new { animation: lt-drop .5s ease-out var(--delay, 0ms) both; }
+.lt-fall.lt-burst { animation-iteration-count: 1; animation-duration: 1.8s; }
+.lt-fall.lt-burst img { animation-iteration-count: 1; animation-duration: 1.8s; }
+@keyframes lt-fade-out { to { opacity: 0; } }
+@keyframes lt-grow-in { from { transform: scale(.92); opacity: 0; } 40% { opacity: 1; } to { transform: scale(1); opacity: 1; } }
+@keyframes lt-drop { from { transform: translateY(-18px) rotate(-40deg); opacity: 0; } }
+.lt-tree.settling .lt-stage, .lt-tree.settling .lt-layer { transition: transform .5s cubic-bezier(.22, .9, .3, 1); }
+.lt-tilt {
+  position: absolute; right: 12px; bottom: 12px; padding: 7px 12px; border: 0; border-radius: 999px;
+  background: #fbf7ecee; color: var(--lt-ink); font-size: 12px; box-shadow: 0 1px 0 #5b4a3a33;
+}
+.lt-tilt[aria-pressed='true'] { background: #3b2f25; color: #fbf7ec; }
+@media (prefers-reduced-motion: reduce) {
+  .lt-stage, .lt-layer { transform: none !important; }
+  /* No falling leaves; growing is a plain crossfade (style.css turns animations off with !important). */
+  .lt-falling { display: none; }
+  .lt-in img { animation: lt-fade-in .4s ease both !important; transform: none !important; }
+  .lt-out img { animation: lt-fade-out .4s ease forwards !important; }
+  .lt-litter .lt-new { animation: lt-fade-in .3s ease var(--delay, 0ms) both !important; }
+}
+@keyframes lt-fade-in { from { opacity: 0; } }

@@ -1,0 +1,73 @@
+{
+ "_doc": "Growth-stage look of 나만의 나무. Read by scripts/make_tree_placeholders.py (art + anchors), treeScene.js (particles, shadow) and tests. Positions are fractions of the tree height H measured from the trunk foot: fx = right of centre, fy = up from the foot. Counts are plain numbers so they can be tuned here.",
+ "stages": {
+  "sprout": {
+   "label": "새싹",
+   "height": 0.13,
+   "trunkWidth": 0,
+   "props": ["mound"],
+   "cotyledons": [[-0.42, 0.62, 0.34, -28], [0.42, 0.66, 0.34, 28]],
+   "falling": 0,
+   "groundLeaves": 0,
+   "shadowScale": 0.35,
+   "slots": {
+    "branch-1": [-0.4, 0.7, "front"], "branch-2": [0.4, 0.72, "front"], "branch-3": [-0.4, 0.7, "front"], "branch-4": [0.4, 0.72, "front"], "topper": [0, 1.05, "front"]
+   }
+  },
+  "sapling": {
+   "label": "묘목",
+   "height": 0.36,
+   "trunkWidth": 6,
+   "props": ["stake"],
+   "trunkTop": 1.0,
+   "limbs": [[0, 0.45, -0.2, 0.55], [0, 0.62, 0.18, 0.72]],
+   "leaves": [[-0.2, 0.55], [0.18, 0.72], [0, 0.98], [-0.07, 0.86], [0.08, 0.6], [0.1, 0.9], [-0.1, 0.72]],
+   "leafSize": 0.085,
+   "falling": 1,
+   "groundLeaves": 0,
+   "shadowScale": 0.5,
+   "slots": {
+    "branch-1": [-0.2, 0.55, "front"], "branch-2": [0.18, 0.72, "front"], "branch-3": [-0.07, 0.86, "front"], "branch-4": [0.08, 0.6, "front"], "topper": [0, 1.02, "front"]
+   }
+  },
+  "young": {
+   "label": "어린나무",
+   "height": 0.56,
+   "trunkWidth": 22,
+   "props": [],
+   "trunkTop": 0.48,
+   "limbs": [[0, 0.48, -0.22, 0.74], [0, 0.48, 0.22, 0.78], [0, 0.48, 0.02, 0.9]],
+   "clumps": [[-0.22, 0.74, 0.2], [0.22, 0.78, 0.2]],
+   "density": 0.55,
+   "falling": 3,
+   "groundLeaves": 4,
+   "shadowScale": 0.75,
+   "slots": {
+    "branch-1": [-0.165, 0.675, "mid"], "branch-2": [0.176, 0.72, "front"], "branch-3": [-0.099, 0.597, "front"], "branch-4": [0.099, 0.615, "front"], "topper": [0, 1.0, "front"]
+   }
+  },
+  "grown": {
+   "label": "큰나무",
+   "height": 0.74,
+   "trunkWidth": 44,
+   "props": ["roots", "bark"],
+   "trunkTop": 0.42,
+   "limbs": [[0, 0.42, -0.32, 0.6], [0, 0.42, 0.32, 0.58], [0, 0.42, -0.18, 0.76], [0, 0.42, 0.2, 0.78], [0, 0.42, 0, 0.86]],
+   "clumps": [[-0.32, 0.6, 0.2], [0.32, 0.58, 0.2], [-0.18, 0.76, 0.2], [0.2, 0.78, 0.2], [0, 0.86, 0.14]],
+   "density": 0.9,
+   "falling": 7,
+   "groundLeaves": 14,
+   "shadowScale": 1.1,
+   "slots": {
+    "branch-1": [-0.272, 0.573, "mid"], "branch-2": [0.272, 0.556, "front"], "branch-3": [-0.144, 0.688, "front"], "branch-4": [0.16, 0.71, "mid"], "topper": [0, 0.97, "front"]
+   }
+  }
+ },
+ "species": {
+  "maple": { "leaf": "maple", "ripeness": [0, 0.35, 0.7, 1], "green": ["#4f7a38", "#7fa64e", "#b5cf7a"], "ripe": ["#b8321e", "#e2572b", "#f4a259"] },
+  "ginkgo": { "leaf": "ginkgo", "ripeness": [0, 0.3, 0.65, 1], "green": ["#6f9a3c", "#a6c860", "#d4e48c"], "ripe": ["#d6a026", "#f2c840", "#fce480"] },
+  "cherry": { "leaf": "cherry", "bloom": [0.1, 0.35, 0.7, 1], "green": ["#5e8a46", "#8fb36a", "#bcd69a"], "ripe": ["#e28ea8", "#f6bccc", "#fde2ea"] },
+  "xmas": { "leaf": "none", "tiers": [2, 3, 4, 5], "green": ["#2c5c42", "#468054", "#76a668"], "ripe": ["#2c5c42", "#468054", "#76a668"] }
+ },
+ "xmasCone": { "_doc": "per stage (sprout..grown): bare trunk below the needles, half width of the lowest tier, tier overlap (lower = deeper notches)", "base": [0.2, 0.22, 0.15, 0.1], "halfWidth": [0.3, 0.22, 0.3, 0.4], "overlap": [1.05, 1.08, 1.12, 1.15], "tipInset": 0.86 }
+}
