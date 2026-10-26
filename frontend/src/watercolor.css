@@ -1,4 +1,4 @@
-/* Watercolor map theme. Loaded only with VITE_MAP_THEME=watercolor; every rule is scoped to .wc-*. */
+/* Watercolor map theme. Loaded unless VITE_MAP_THEME=classic; every rule is scoped to .wc-*. */
 .wc-map {
   --wc-paper: #f3ecdc;
   --wc-ink: #3b2f25;

@@ -45,8 +45,8 @@ $env:PYTHONPATH = "backend"; $env:PYTHONUTF8 = "1"
 $env:FORECAST_TODAY = "2026-10-30"
 .venv\Scripts\python -m app.cli seed-showcase
 
-# 3) 실행 (수채화 지도, 15초 갱신)
-$env:VITE_MAP_THEME = "watercolor"; $env:VITE_ZONE_POLL_MS = "15000"
+# 3) 실행 (수채화 지도가 기본값, 15초 갱신)
+$env:VITE_ZONE_POLL_MS = "15000"
 powershell -ExecutionPolicy Bypass -File scripts\dev.ps1
 
 # 4) 끝나면 시연 데이터만 지우기

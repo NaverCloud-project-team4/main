@@ -1,6 +1,6 @@
 # 수채화 지도 에셋
 
-`VITE_MAP_THEME=watercolor`에서만 사용합니다. 코드는 아래 파일명만 참조하므로(`MAP_ASSETS`, `frontend/src/components/WatercolorZoneMap.jsx`), **같은 이름·형식으로 덮어쓰면 교체가 끝납니다**. 현재 파일은 `scripts/make_map_placeholders.py`로 만든 임시본입니다.
+수채화 테마(기본값, `VITE_MAP_THEME=classic`이 아닐 때)에서만 사용합니다. 코드는 아래 파일명만 참조하므로(`MAP_ASSETS`, `frontend/src/components/WatercolorZoneMap.jsx`), **같은 이름·형식으로 덮어쓰면 교체가 끝납니다**. 현재 파일은 `scripts/make_map_placeholders.py`로 만든 임시본입니다.
 
 | 파일 | 크기 | 형식 | 용도·조건 | 상태 |
 |---|---|---|---|---|

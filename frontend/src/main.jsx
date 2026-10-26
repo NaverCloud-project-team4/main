@@ -9,8 +9,8 @@ import ReportCard, { statuses } from './components/ReportCard';
 import { initialSheet, sheetReducer } from './lib/sheetState';
 import './style.css';
 
-// classic (default) keeps the original map as the demo fallback; watercolor loads lazily.
-const MAP_THEME = import.meta.env.VITE_MAP_THEME === 'watercolor' ? 'watercolor' : 'classic';
+// watercolor (default) is the illustrated map with the district sheet; VITE_MAP_THEME=classic keeps the original map as the demo fallback.
+const MAP_THEME = import.meta.env.VITE_MAP_THEME === 'classic' ? 'classic' : 'watercolor';
 const WatercolorZoneMap = lazy(() => import('./components/WatercolorZoneMap'));
 const ZoneSheet = lazy(() => import('./components/ZoneSheet'));
 const TreePage = lazy(() => import('./components/TreePage'));
