@@ -1,5 +1,8 @@
 # 까우룽까우룽 · 실행 가능한 백엔드 MVP
 
+사진 제보 자동 생성과 NCP 부하 테스트: [실행 가이드](docs/load-test.md), [설계 명세서](docs/load-test-spec.md). 사용자 제공 은행·단풍 사진을 수종에 맞춰 무작위로 사용하고 서울 자치구 경계 안의 좌표를 생성합니다.
+실시간 화면은 `.venv/bin/python scripts/loadtest_dashboard.py`로 실행한 뒤 `http://127.0.0.1:8765`에서 볼 수 있습니다.
+
 FastAPI 백엔드와 React 동작 확인 화면입니다. 화면의 데이터는 실제 API와 DB를 사용합니다. 로컬 AI 검증은 명시적인 테스트 시나리오이며 실제 사진 분류가 아닙니다.
 
 ## 바로 실행

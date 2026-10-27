@@ -1,0 +1,22 @@
+{
+  "cooldown_seconds": 5,
+  "max_reports": 3,
+  "max_requests": 100,
+  "max_upload_bytes": 10485760,
+  "max_duration_seconds": 20,
+  "submit_concurrency": 2,
+  "feed_concurrency": 5,
+  "timeout_seconds": 15,
+  "shutdown_seconds": 5,
+  "drain_seconds": 5,
+  "poll_interval_seconds": 1,
+  "observation_rps": 5,
+  "status_sample_rate": 1,
+  "status_sample_limit": 100,
+  "visibility_pages": 5,
+  "photo_download_ratio": 0,
+  "image_max_bytes": 10485760,
+  "stages": [
+    {"name": "smoke", "seconds": 12, "submit_rps": 0.1, "feed_rps": 1}
+  ]
+}

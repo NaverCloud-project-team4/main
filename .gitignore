@@ -16,3 +16,5 @@ frontend/dist/
 *.db-wal
 .DS_Store
 artifacts/
+loadtest-accounts*.json
+scripts/loadtest/accounts.local*.json

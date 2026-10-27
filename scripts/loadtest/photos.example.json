@@ -1,0 +1,39 @@
+[
+  {
+    "path": "../../assets/loadtest/ginkgo-1.jpeg",
+    "species": "GINKGO",
+    "stage": "PEAK"
+  },
+  {
+    "path": "../../assets/loadtest/ginkgo-2.jpeg",
+    "species": "GINKGO",
+    "stage": "PEAK"
+  },
+  {
+    "path": "../../assets/loadtest/ginkgo-3.jpeg",
+    "species": "GINKGO",
+    "stage": "PEAK"
+  },
+  {
+    "path": "../../assets/loadtest/maple-1.jpeg",
+    "species": "MAPLE",
+    "stage": "PEAK"
+  },
+  {
+    "path": "../../assets/loadtest/maple-2.jpeg",
+    "species": "MAPLE",
+    "stage": "PEAK"
+  },
+  {
+    "path": "../../assets/loadtest/maple-3.jpeg",
+    "species": "MAPLE",
+    "stage": "PEAK"
+  },
+  {
+    "path": "../../assets/loadtest/unrelated-usagi.jpeg",
+    "species": "MIXED",
+    "stage": "PEAK",
+    "test_case": "unrelated",
+    "expected_decision": "REJECTED"
+  }
+]

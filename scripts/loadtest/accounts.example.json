@@ -1,0 +1,4 @@
+[
+  {"email": "loadtest-001@example.com", "password": "REPLACE_WITH_REAL_PASSWORD"},
+  {"email": "loadtest-002@example.com", "password": "REPLACE_WITH_REAL_PASSWORD"}
+]
